@@ -446,13 +446,13 @@ def build_weekend_status_bar_chart(
         )
     )
     fig.update_layout(
-        title="상태별 분포 (토/일 통합)",
         barmode="group",
         yaxis=dict(title="인원(명)", range=[0, max_count * 1.35]),
         xaxis=dict(title="요일"),
-        margin=dict(l=20, r=20, t=50, b=20),
+        margin=dict(l=20, r=20, t=20, b=20),
         legend=dict(title="상태"),
         template="plotly_dark",
+        height=320,
     )
     return fig
 
@@ -802,6 +802,7 @@ with tab_dashboard:
 
         chart_col1, chart_col2 = st.columns(2)
         with chart_col1:
+            st.caption("상태별 분포 (토/일 통합)")
             weekend_bar = build_weekend_status_bar_chart(
                 sat_present=weekend_counts.get("sat_present", 0),
                 sat_absent=weekend_counts.get("sat_absent", 0),
