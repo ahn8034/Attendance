@@ -118,7 +118,7 @@ st.caption("Streamlit + Supabase")
 
 top_actions = st.columns([1, 6])
 with top_actions[0]:
-    if st.button("리프레시"):
+    if st.button("🔄", help="데이터 새로고침"):
         st.cache_data.clear()
         st.rerun()
 
