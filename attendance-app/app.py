@@ -355,34 +355,38 @@ def resolve_app_base_url() -> str:
     return ""
 
 
-def build_day_pie_chart(day_label: str, present_count: int, absent_count: int):
+def build_day_status_bar_chart(day_label: str, present_count: int, absent_count: int):
     data = [
         {"status": "present", "count": present_count},
         {"status": "absent", "count": absent_count},
     ]
-    base = (
+    bars = (
         alt.Chart(alt.Data(values=data))
-        .transform_joinaggregate(total="sum(count)")
-        .transform_calculate(percent="datum.total > 0 ? datum.count / datum.total * 100 : 0")
+        .mark_bar(size=42)
+        .encode(
+            x=alt.X("status:N", title=None),
+            y=alt.Y("count:Q", title="인원(명)", scale=alt.Scale(domainMin=0, nice=True)),
+            color=alt.Color(
+                "status:N",
+                scale=alt.Scale(domain=["present", "absent"], range=["#0ea5e9", "#ef4444"]),
+                legend=alt.Legend(title="상태"),
+            ),
+            tooltip=[
+                alt.Tooltip("status:N", title="상태"),
+                alt.Tooltip("count:Q", title="인원"),
+            ],
+        )
     )
-    pie = base.mark_arc(innerRadius=42, outerRadius=110).encode(
-        theta=alt.Theta("count:Q"),
-        color=alt.Color(
-            "status:N",
-            scale=alt.Scale(domain=["present", "absent"], range=["#0ea5e9", "#ef4444"]),
-            legend=None,
-        ),
-        tooltip=[
-            alt.Tooltip("status:N", title="상태"),
-            alt.Tooltip("count:Q", title="인원"),
-            alt.Tooltip("percent:Q", title="비율(%)", format=".1f"),
-        ],
+    labels = (
+        alt.Chart(alt.Data(values=data))
+        .mark_text(dy=-8, color="white", size=12, fontWeight="bold", stroke="#111827", strokeWidth=2)
+        .encode(
+            x=alt.X("status:N"),
+            y=alt.Y("count:Q"),
+            text=alt.Text("count:Q"),
+        )
     )
-    return (
-        alt.layer(pie)
-        .properties(title=day_label)
-        .configure_view(strokeOpacity=0)
-    )
+    return alt.layer(bars, labels).properties(title=day_label, height=260).configure_view(strokeOpacity=0)
 
 
 def render_class_board(
@@ -735,19 +739,19 @@ else:
         st.caption("상태별 분포 (토/일 분리)")
         pie_cols = st.columns(2)
         with pie_cols[0]:
-            sat_pie = build_day_pie_chart(
+            sat_bar = build_day_status_bar_chart(
                 "토요일",
                 weekend_counts.get("sat_present", 0),
                 weekend_counts.get("sat_absent", 0),
             )
-            st.altair_chart(sat_pie, use_container_width=True)
+            st.altair_chart(sat_bar, use_container_width=True)
         with pie_cols[1]:
-            sun_pie = build_day_pie_chart(
+            sun_bar = build_day_status_bar_chart(
                 "일요일",
                 weekend_counts.get("sun_present", 0),
                 weekend_counts.get("sun_absent", 0),
             )
-            st.altair_chart(sun_pie, use_container_width=True)
+            st.altair_chart(sun_bar, use_container_width=True)
     with chart_col2:
         st.caption("주차별 출석 인원 (토/일 구분)")
         week_agg = defaultdict(lambda: {"sat_present": 0, "sun_present": 0})
