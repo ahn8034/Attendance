@@ -1117,7 +1117,6 @@ with tab_dashboard:
                 )
 
         trend_chart_rows = [st.columns(2), st.columns(2)]
-        x_days = ["토요일", "일요일"]
         sibling_max = max(
             sibling_by_level_day["중등부"]["sat"].get("형제", 0),
             sibling_by_level_day["중등부"]["sun"].get("형제", 0),
@@ -1130,26 +1129,36 @@ with tab_dashboard:
             1,
         )
 
-        def render_single_sibling_trend(title: str, sat_val: int, sun_val: int):
+        def render_single_sibling_trend(title: str, x_label: str, sat_val: int, sun_val: int):
             fig = go.Figure()
-            y_vals = [sat_val, sun_val]
             fig.add_trace(
                 go.Scatter(
-                    x=x_days,
-                    y=y_vals,
-                    mode="lines+markers+text",
-                    text=y_vals,
+                    name="토요일",
+                    x=[x_label],
+                    y=[sat_val],
+                    mode="markers+text",
+                    text=[sat_val],
                     textposition="top center",
-                    line=dict(color="#38bdf8", width=3),
-                    marker=dict(size=8),
-                    showlegend=False,
+                    marker=dict(color="#22c55e", size=11),
+                )
+            )
+            fig.add_trace(
+                go.Scatter(
+                    name="일요일",
+                    x=[x_label],
+                    y=[sun_val],
+                    mode="markers+text",
+                    text=[sun_val],
+                    textposition="top center",
+                    marker=dict(color="#f97316", size=11),
                 )
             )
             fig.update_layout(
                 title=title,
                 yaxis=dict(title="출석 인원(명)", range=[0, sibling_max * 1.35]),
-                xaxis=dict(title="요일"),
+                xaxis=dict(title=""),
                 margin=dict(l=20, r=20, t=40, b=20),
+                legend=dict(title="요일"),
                 template="plotly_dark",
                 height=280,
             )
@@ -1158,24 +1167,28 @@ with tab_dashboard:
         with trend_chart_rows[0][0]:
             render_single_sibling_trend(
                 "중등부 형제 트렌드",
+                "중등부",
                 sibling_by_level_day["중등부"]["sat"].get("형제", 0),
                 sibling_by_level_day["중등부"]["sun"].get("형제", 0),
             )
         with trend_chart_rows[0][1]:
             render_single_sibling_trend(
                 "중등부 자매 트렌드",
+                "중등부",
                 sibling_by_level_day["중등부"]["sat"].get("자매", 0),
                 sibling_by_level_day["중등부"]["sun"].get("자매", 0),
             )
         with trend_chart_rows[1][0]:
             render_single_sibling_trend(
                 "고등부 형제 트렌드",
+                "고등부",
                 sibling_by_level_day["고등부"]["sat"].get("형제", 0),
                 sibling_by_level_day["고등부"]["sun"].get("형제", 0),
             )
         with trend_chart_rows[1][1]:
             render_single_sibling_trend(
                 "고등부 자매 트렌드",
+                "고등부",
                 sibling_by_level_day["고등부"]["sat"].get("자매", 0),
                 sibling_by_level_day["고등부"]["sun"].get("자매", 0),
             )
