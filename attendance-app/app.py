@@ -784,7 +784,7 @@ else:
         st.altair_chart(alt.layer(weekly_count_chart, weekly_count_text), use_container_width=True)
 
 st.divider()
-st.subheader("출석 입력")
+st.subheader("조회 / QR 설정")
 
 selected_date = st.date_input("출석 날짜", value=date.today())
 selected_date_label = day_label_from_date(selected_date)
@@ -799,34 +799,6 @@ class_students = [
     r for r in class_rows if (r["level"], r["grade"], r["class_no"]) == selected_class
 ]
 student_options = {f"{r['student_name']} ({r['student_id'][:8]})": r for r in class_students}
-
-with st.form("attendance_form", clear_on_submit=True):
-    selected_label = st.selectbox("학생", list(student_options.keys()))
-    note = st.text_input("비고", placeholder="선택")
-    submitted = st.form_submit_button("저장")
-
-if submitted:
-    if day_code_from_date(selected_date) not in {"sat", "sun"}:
-        st.error("출석 입력은 토요일/일요일만 가능합니다. 날짜를 주말로 선택하세요.")
-    else:
-        student = student_options[selected_label]
-        school_class_id = class_id_map.get(selected_class)
-
-        if not school_class_id:
-            st.error("선택한 반의 school_class_id를 찾지 못했습니다.")
-        else:
-            try:
-                save_attendance(
-                    client=supabase,
-                    attendance_date=selected_date,
-                    student_id=student["student_id"],
-                    school_class_id=school_class_id,
-                    status="present",
-                    note=note,
-                )
-                st.success(f"저장 완료: {student['student_name']} (present)")
-            except Exception as e:
-                st.error(f"저장 실패: {e}")
 
 st.markdown("#### QR 출석 링크 생성")
 qr_cols = st.columns(3)
