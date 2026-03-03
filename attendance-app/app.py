@@ -1089,49 +1089,6 @@ with tab_dashboard:
                     "출석",
                     sibling_present_latest.get("자매", 0),
                 )
-            total_fig = go.Figure()
-            x_total = ["토요일", "일요일"]
-            y_total_brother = [
-                sibling_by_day["sat"].get("형제", 0),
-                sibling_by_day["sun"].get("형제", 0),
-            ]
-            y_total_sister = [
-                sibling_by_day["sat"].get("자매", 0),
-                sibling_by_day["sun"].get("자매", 0),
-            ]
-            total_fig.add_trace(
-                go.Bar(
-                    name="형제",
-                    x=x_total,
-                    y=y_total_brother,
-                    text=y_total_brother,
-                    textposition="outside",
-                    marker_color="#38bdf8",
-                    cliponaxis=False,
-                )
-            )
-            total_fig.add_trace(
-                go.Bar(
-                    name="자매",
-                    x=x_total,
-                    y=y_total_sister,
-                    text=y_total_sister,
-                    textposition="outside",
-                    marker_color="#f97316",
-                    cliponaxis=False,
-                )
-            )
-            total_max = max(y_total_brother + y_total_sister + [1])
-            total_fig.update_layout(
-                barmode="group",
-                yaxis=dict(title="출석 인원(명)", range=[0, total_max * 1.35]),
-                xaxis=dict(title="요일"),
-                margin=dict(l=20, r=20, t=20, b=20),
-                template="plotly_dark",
-                height=300,
-                legend=dict(title="구분"),
-            )
-            st.plotly_chart(total_fig, use_container_width=True, config={"displayModeBar": False})
 
         with sib_col2:
             st.subheader("중등부/고등부별 형제/자매 출석 통계")
@@ -1168,49 +1125,65 @@ with tab_dashboard:
                     "자매 출석",
                     sibling_level_present_latest["고등부"].get("자매", 0),
                 )
-            level_sib_fig = go.Figure()
-            x_levels = ["중등부", "고등부"]
-            y_brother = [
-                sibling_by_level["중등부"].get("형제", 0),
-                sibling_by_level["고등부"].get("형제", 0),
-            ]
-            y_sister = [
-                sibling_by_level["중등부"].get("자매", 0),
-                sibling_by_level["고등부"].get("자매", 0),
-            ]
-            level_sib_fig.add_trace(
-                go.Bar(
-                    name="형제",
-                    x=x_levels,
-                    y=y_brother,
-                    text=y_brother,
-                    textposition="outside",
-                    marker_color="#38bdf8",
-                    cliponaxis=False,
-                )
+
+        y_total_brother = [
+            sibling_by_day["sat"].get("형제", 0),
+            sibling_by_day["sun"].get("형제", 0),
+        ]
+        y_total_sister = [
+            sibling_by_day["sat"].get("자매", 0),
+            sibling_by_day["sun"].get("자매", 0),
+        ]
+        y_level_brother = [
+            sibling_by_level["중등부"].get("형제", 0),
+            sibling_by_level["고등부"].get("형제", 0),
+        ]
+        y_level_sister = [
+            sibling_by_level["중등부"].get("자매", 0),
+            sibling_by_level["고등부"].get("자매", 0),
+        ]
+
+        combined_sibling_fig = go.Figure()
+        x_combined = ["토요일", "일요일", "중등부", "고등부"]
+        y_combined_brother = y_total_brother + y_level_brother
+        y_combined_sister = y_total_sister + y_level_sister
+        combined_sibling_fig.add_trace(
+            go.Bar(
+                name="형제",
+                x=x_combined,
+                y=y_combined_brother,
+                text=y_combined_brother,
+                textposition="outside",
+                marker_color="#38bdf8",
+                cliponaxis=False,
             )
-            level_sib_fig.add_trace(
-                go.Bar(
-                    name="자매",
-                    x=x_levels,
-                    y=y_sister,
-                    text=y_sister,
-                    textposition="outside",
-                    marker_color="#f97316",
-                    cliponaxis=False,
-                )
+        )
+        combined_sibling_fig.add_trace(
+            go.Bar(
+                name="자매",
+                x=x_combined,
+                y=y_combined_sister,
+                text=y_combined_sister,
+                textposition="outside",
+                marker_color="#f97316",
+                cliponaxis=False,
             )
-            level_sib_max = max(y_brother + y_sister + [1])
-            level_sib_fig.update_layout(
-                barmode="group",
-                yaxis=dict(title="출석 인원(명)", range=[0, level_sib_max * 1.35]),
-                xaxis=dict(title="부서"),
-                margin=dict(l=20, r=20, t=20, b=20),
-                legend=dict(title="구분"),
-                template="plotly_dark",
-                height=300,
-            )
-            st.plotly_chart(level_sib_fig, use_container_width=True, config={"displayModeBar": False})
+        )
+        combined_sibling_max = max(y_combined_brother + y_combined_sister + [1])
+        combined_sibling_fig.update_layout(
+            barmode="group",
+            yaxis=dict(title="출석 인원(명)", range=[0, combined_sibling_max * 1.35]),
+            xaxis=dict(title="구분"),
+            margin=dict(l=20, r=20, t=20, b=20),
+            legend=dict(title="구분"),
+            template="plotly_dark",
+            height=320,
+        )
+        st.plotly_chart(
+            combined_sibling_fig,
+            use_container_width=True,
+            config={"displayModeBar": False},
+        )
 
 with tab_admin:
     st.markdown("#### 수동 출석 입력")
