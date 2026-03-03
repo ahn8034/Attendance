@@ -518,11 +518,10 @@ else:
         status_counts["absent"] += absent_cnt
         date_counts[adate] = present_cnt + absent_cnt
 
-    metric_cols = st.columns(4)
-    metric_cols[0].metric("전체 기록", sum(date_counts.values()))
-    metric_cols[1].metric("학생 수(교사 제외)", unique_students)
-    metric_cols[2].metric("출석", status_counts.get("present", 0))
-    metric_cols[3].metric("결석", status_counts.get("absent", 0))
+    metric_cols = st.columns(3)
+    metric_cols[0].metric("학생 수(교사 제외)", unique_students)
+    metric_cols[1].metric("출석", status_counts.get("present", 0))
+    metric_cols[2].metric("결석", status_counts.get("absent", 0))
 
     chart_col1, chart_col2 = st.columns(2)
     with chart_col1:
@@ -552,9 +551,13 @@ else:
                 alt.Tooltip("percent:Q", title="비율(%)", format=".1f"),
             ],
         )
-        status_labels = status_base.mark_text(radius=95, size=12, color="white").encode(
-            theta=alt.Theta("count:Q"),
-            text=alt.Text("percent:Q", format=".1f"),
+        status_labels = (
+            status_base.transform_filter("datum.count > 0")
+            .mark_text(radius=68, size=11, color="white")
+            .encode(
+                theta=alt.Theta("count:Q"),
+                text=alt.Text("percent:Q", format=".1f'%'"),
+            )
         )
         status_pie_chart = (
             alt.layer(status_pie_chart, status_labels)
@@ -562,8 +565,8 @@ else:
         )
         st.altair_chart(status_pie_chart, use_container_width=True)
     with chart_col2:
-        st.caption("주차별 출석률 (토/일 구분)")
-        week_agg = defaultdict(lambda: {"sat_present": 0, "sun_present": 0, "total": 0})
+        st.caption("주차별 출석 인원 (토/일 구분)")
+        week_agg = defaultdict(lambda: {"sat_present": 0, "sun_present": 0})
         for adate, student_map in date_student_status.items():
             day = date.fromisoformat(adate)
             day_code = day_code_from_date(day)
@@ -574,36 +577,32 @@ else:
             present_cnt = sum(1 for s in student_map.values() if s == "present")
             if day_code == "sat":
                 week_agg[week_key]["sat_present"] += present_cnt
-                week_agg[week_key]["total"] += unique_students
             elif day_code == "sun":
                 week_agg[week_key]["sun_present"] += present_cnt
-                week_agg[week_key]["total"] += unique_students
 
         weekly_rate_data = []
         for week_key, agg in sorted(week_agg.items(), key=lambda x: x[0]):
             week_start_date = date.fromisoformat(week_key)
             week_label = week_label_from_sunday(week_start_date)
-            sat_rate = round((agg["sat_present"] / unique_students) * 100, 1) if unique_students else 0
-            sun_rate = round((agg["sun_present"] / unique_students) * 100, 1) if unique_students else 0
-            weekly_rate_data.append({"week": week_label, "day_type": "토요일", "attendance_rate": sat_rate})
-            weekly_rate_data.append({"week": week_label, "day_type": "일요일", "attendance_rate": sun_rate})
+            weekly_rate_data.append({"week": week_label, "day_type": "토요일", "attendance_count": agg["sat_present"]})
+            weekly_rate_data.append({"week": week_label, "day_type": "일요일", "attendance_count": agg["sun_present"]})
 
-        weekly_rate_chart = (
+        weekly_count_chart = (
             alt.Chart(alt.Data(values=weekly_rate_data))
             .mark_bar()
             .encode(
                 x=alt.X("week:N", title="주차"),
-                y=alt.Y("attendance_rate:Q", title="출석률(%)", scale=alt.Scale(domain=[0, 100])),
+                y=alt.Y("attendance_count:Q", title="출석 인원(명)"),
                 xOffset=alt.XOffset("day_type:N"),
                 color=alt.Color(
                     "day_type:N",
                     scale=alt.Scale(domain=["토요일", "일요일"], range=["#22c55e", "#f97316"]),
                     legend=alt.Legend(title="요일"),
                 ),
-                tooltip=["week:N", "day_type:N", "attendance_rate:Q"],
+                tooltip=["week:N", "day_type:N", "attendance_count:Q"],
             )
         )
-        st.altair_chart(weekly_rate_chart, use_container_width=True)
+        st.altair_chart(weekly_count_chart, use_container_width=True)
 
 st.divider()
 st.subheader("출석 입력")
