@@ -790,7 +790,11 @@ else:
             .mark_line(strokeWidth=3)
             .encode(
                 x=alt.X("week:N", title="주차", sort=alt.SortField(field="week_order", order="ascending")),
-                y=alt.Y("attendance_count:Q", title="출석 인원(명)"),
+                y=alt.Y(
+                    "attendance_count:Q",
+                    title="출석 인원(명)",
+                    scale=alt.Scale(domainMin=0, nice=True, padding=24),
+                ),
                 color=alt.Color(
                     "day_type:N",
                     scale=alt.Scale(domain=["토요일", "일요일"], range=["#22c55e", "#f97316"]),
@@ -815,7 +819,7 @@ else:
         weekly_count_text = (
             alt.Chart(alt.Data(values=weekly_rate_data))
             .mark_text(
-                dy=-12,
+                dy=12,
                 color="white",
                 size=12,
                 fontWeight="bold",
@@ -828,7 +832,8 @@ else:
                 text=alt.Text("attendance_count:Q"),
             )
         )
-        st.altair_chart(alt.layer(weekly_line, weekly_points, weekly_count_text), use_container_width=True)
+        trend_chart = alt.layer(weekly_line, weekly_points, weekly_count_text).properties(height=320)
+        st.altair_chart(trend_chart, use_container_width=True)
 
 st.divider()
 st.subheader("조회 / QR 설정")
