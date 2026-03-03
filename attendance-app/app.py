@@ -931,54 +931,50 @@ with tab_dashboard:
                 level_weekend_present[level_name][day_code] += present_cnt
 
         level_fig = go.Figure()
-        x_days = ["토요일", "일요일"]
+        x_levels = ["중등부", "고등부"]
         level_fig.add_trace(
             go.Bar(
-                name="중등부",
-                x=x_days,
+                name="토요일",
+                x=x_levels,
                 y=[
                     level_weekend_present["중등부"]["sat"],
-                    level_weekend_present["중등부"]["sun"],
+                    level_weekend_present["고등부"]["sat"],
                 ],
                 text=[
                     level_weekend_present["중등부"]["sat"],
-                    level_weekend_present["중등부"]["sun"],
+                    level_weekend_present["고등부"]["sat"],
                 ],
-                textposition="outside",
-                marker_color="#38bdf8",
-                cliponaxis=False,
+                textposition="inside",
+                marker_color="#22c55e",
             )
         )
         level_fig.add_trace(
             go.Bar(
-                name="고등부",
-                x=x_days,
+                name="일요일",
+                x=x_levels,
                 y=[
-                    level_weekend_present["고등부"]["sat"],
+                    level_weekend_present["중등부"]["sun"],
                     level_weekend_present["고등부"]["sun"],
                 ],
                 text=[
-                    level_weekend_present["고등부"]["sat"],
+                    level_weekend_present["중등부"]["sun"],
                     level_weekend_present["고등부"]["sun"],
                 ],
-                textposition="outside",
-                marker_color="#a78bfa",
-                cliponaxis=False,
+                textposition="inside",
+                marker_color="#f97316",
             )
         )
         max_level_val = max(
-            level_weekend_present["중등부"]["sat"],
-            level_weekend_present["중등부"]["sun"],
-            level_weekend_present["고등부"]["sat"],
-            level_weekend_present["고등부"]["sun"],
+            level_weekend_present["중등부"]["sat"] + level_weekend_present["중등부"]["sun"],
+            level_weekend_present["고등부"]["sat"] + level_weekend_present["고등부"]["sun"],
             1,
         )
         level_fig.update_layout(
-            barmode="group",
+            barmode="stack",
             yaxis=dict(title="출석 인원(명)", range=[0, max_level_val * 1.35]),
-            xaxis=dict(title="요일"),
+            xaxis=dict(title="부서"),
             margin=dict(l=20, r=20, t=20, b=20),
-            legend=dict(title="부서"),
+            legend=dict(title="요일"),
             template="plotly_dark",
             height=300,
         )
