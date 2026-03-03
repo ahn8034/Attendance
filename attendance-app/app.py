@@ -1001,6 +1001,80 @@ with tab_dashboard:
                     if level_name in sibling_by_level:
                         sibling_by_level[level_name][sibling] += 1
 
+        sibling_total_counts = {
+            "형제": sum(
+                1
+                for sid in unique_student_ids
+                if student_group_map.get(sid, {}).get("sibling") == "형제"
+            ),
+            "자매": sum(
+                1
+                for sid in unique_student_ids
+                if student_group_map.get(sid, {}).get("sibling") == "자매"
+            ),
+        }
+        sibling_level_total_counts = {
+            "중등부": {
+                "형제": sum(
+                    1
+                    for sid in unique_student_ids
+                    if student_group_map.get(sid, {}).get("level") == "중등부"
+                    and student_group_map.get(sid, {}).get("sibling") == "형제"
+                ),
+                "자매": sum(
+                    1
+                    for sid in unique_student_ids
+                    if student_group_map.get(sid, {}).get("level") == "중등부"
+                    and student_group_map.get(sid, {}).get("sibling") == "자매"
+                ),
+            },
+            "고등부": {
+                "형제": sum(
+                    1
+                    for sid in unique_student_ids
+                    if student_group_map.get(sid, {}).get("level") == "고등부"
+                    and student_group_map.get(sid, {}).get("sibling") == "형제"
+                ),
+                "자매": sum(
+                    1
+                    for sid in unique_student_ids
+                    if student_group_map.get(sid, {}).get("level") == "고등부"
+                    and student_group_map.get(sid, {}).get("sibling") == "자매"
+                ),
+            },
+        }
+        latest_att_date = max(date_student_status.keys()) if date_student_status else None
+        latest_att_map = date_student_status.get(latest_att_date, {}) if latest_att_date else {}
+
+        sibling_present_latest = Counter()
+        sibling_level_present_latest = {
+            "중등부": Counter(),
+            "고등부": Counter(),
+        }
+        for sid, stt in latest_att_map.items():
+            if stt != "present":
+                continue
+            meta = student_group_map.get(sid, {})
+            sibling = meta.get("sibling", "")
+            level_name = meta.get("level", "")
+            if sibling in {"형제", "자매"}:
+                sibling_present_latest[sibling] += 1
+                if level_name in sibling_level_present_latest:
+                    sibling_level_present_latest[level_name][sibling] += 1
+
+        st.markdown(
+            f"전체 형제 : {sibling_present_latest.get('형제', 0)}/{sibling_total_counts['형제']}, "
+            f"전체 자매 : {sibling_present_latest.get('자매', 0)}/{sibling_total_counts['자매']}"
+        )
+        st.markdown(
+            f"중등부 형제 : {sibling_level_present_latest['중등부'].get('형제', 0)}/{sibling_level_total_counts['중등부']['형제']}, "
+            f"중등부 자매 : {sibling_level_present_latest['중등부'].get('자매', 0)}/{sibling_level_total_counts['중등부']['자매']}"
+        )
+        st.markdown(
+            f"고등부 형제 : {sibling_level_present_latest['고등부'].get('형제', 0)}/{sibling_level_total_counts['고등부']['형제']}, "
+            f"고등부 자매 : {sibling_level_present_latest['고등부'].get('자매', 0)}/{sibling_level_total_counts['고등부']['자매']}"
+        )
+
         sib_col1, sib_col2 = st.columns(2)
         with sib_col1:
             st.subheader("전체 형제/자매 출석 통계")
@@ -1029,7 +1103,7 @@ with tab_dashboard:
             st.plotly_chart(total_fig, use_container_width=True, config={"displayModeBar": False})
 
         with sib_col2:
-            st.caption("중등부/고등부별 형제/자매 출석 통계")
+            st.subheader("중등부/고등부별 형제/자매 출석 통계")
             level_sib_fig = go.Figure()
             x_levels = ["중등부", "고등부"]
             y_brother = [
