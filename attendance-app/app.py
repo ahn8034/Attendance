@@ -904,20 +904,6 @@ with tab_dashboard:
         sun_middle_present = level_present_for(latest_sun, "중등부")
         sun_high_present = level_present_for(latest_sun, "고등부")
 
-        level_summary_cols = st.columns(2)
-        with level_summary_cols[0]:
-            st.markdown("<div class='dept-title'>중등부</div>", unsafe_allow_html=True)
-            middle_metric_cols = st.columns(3)
-            middle_metric_cols[0].metric("전체", level_totals["중등부"])
-            middle_metric_cols[1].metric("토요일 출석", sat_middle_present)
-            middle_metric_cols[2].metric("일요일 출석", sun_middle_present)
-        with level_summary_cols[1]:
-            st.markdown("<div class='dept-title'>고등부</div>", unsafe_allow_html=True)
-            high_metric_cols = st.columns(3)
-            high_metric_cols[0].metric("전체", level_totals["고등부"])
-            high_metric_cols[1].metric("토요일 출석", sat_high_present)
-            high_metric_cols[2].metric("일요일 출석", sun_high_present)
-
         level_weekend_present = {
             "중등부": {"sat": 0, "sun": 0},
             "고등부": {"sat": 0, "sun": 0},
@@ -969,7 +955,7 @@ with tab_dashboard:
             middle_fig.update_layout(
                 title="중등부 라인 차트",
                 yaxis=dict(title="출석 인원(명)", range=[0, max_level_val * 1.35]),
-                xaxis=dict(title="부서"),
+                xaxis=dict(title=""),
                 margin=dict(l=20, r=20, t=40, b=20),
                 legend=dict(title="요일"),
                 template="plotly_dark",
@@ -1006,7 +992,7 @@ with tab_dashboard:
             high_fig.update_layout(
                 title="고등부 라인 차트",
                 yaxis=dict(title="출석 인원(명)", range=[0, max_level_val * 1.35]),
-                xaxis=dict(title="부서"),
+                xaxis=dict(title=""),
                 margin=dict(l=20, r=20, t=40, b=20),
                 legend=dict(title="요일"),
                 template="plotly_dark",
