@@ -874,7 +874,7 @@ with tab_dashboard:
             )
             st.plotly_chart(trend_fig, use_container_width=True, config={"displayModeBar": False})
 
-        st.subheader("중등부 / 고등부 출석 인원 비교 (토/일)")
+        st.subheader("중등부 / 고등부 출석 인원 트렌드 (토/일)")
         level_student_ids = {
             "중등부": {r["student_id"] for r in class_rows if r.get("level") == "middle"},
             "고등부": {r["student_id"] for r in class_rows if r.get("level") == "high"},
