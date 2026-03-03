@@ -938,7 +938,7 @@ with tab_dashboard:
             template="plotly_dark",
             height=300,
         )
-            st.plotly_chart(level_fig, use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(level_fig, use_container_width=True, config={"displayModeBar": False})
 
         sibling_total = Counter()
         sibling_by_level = {
