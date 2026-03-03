@@ -308,6 +308,21 @@ def build_qr_checkin_url(base_url: str, school_class_id: str, attendance_date: d
     return f"?{params}"
 
 
+def resolve_app_base_url() -> str:
+    secret_url = st.secrets.get("APP_BASE_URL") or os.getenv("APP_BASE_URL", "")
+    if secret_url:
+        return str(secret_url).strip()
+
+    ctx = getattr(st, "context", None)
+    headers = getattr(ctx, "headers", None) if ctx else None
+    if headers:
+        host = headers.get("Host") or headers.get("host")
+        proto = headers.get("X-Forwarded-Proto") or headers.get("x-forwarded-proto") or "https"
+        if host:
+            return f"{proto}://{host}"
+    return ""
+
+
 def build_day_pie_chart(day_label: str, present_count: int, absent_count: int):
     data = [
         {"status": "present", "count": present_count},
@@ -811,7 +826,7 @@ if submitted:
                 st.error(f"저장 실패: {e}")
 
 st.markdown("#### QR 출석 링크 생성")
-qr_cols = st.columns(4)
+qr_cols = st.columns(3)
 with qr_cols[0]:
     qr_date = st.date_input("QR 날짜", value=selected_date, key="qr_date_input")
 with qr_cols[1]:
@@ -823,13 +838,8 @@ with qr_cols[1]:
     )
 with qr_cols[2]:
     qr_status = st.selectbox("QR 상태", ["present", "absent"], index=0, key="qr_status")
-with qr_cols[3]:
-    app_base_url = st.text_input(
-        "앱 URL(배포 주소)",
-        value=st.secrets.get("APP_BASE_URL", ""),
-        placeholder="https://xxxx.streamlit.app",
-        key="app_base_url",
-    )
+
+app_base_url = resolve_app_base_url()
 
 if day_code_from_date(qr_date) not in {"sat", "sun"}:
     st.info("QR 날짜는 토요일/일요일만 선택하세요.")
@@ -851,7 +861,10 @@ else:
                 caption="학생이 스캔하면 이름 입력 후 출석 처리됩니다.",
             )
         else:
-            st.warning("배포 URL을 입력하면 QR 이미지를 생성할 수 있습니다.")
+            st.warning(
+                "앱 URL을 자동으로 찾지 못했습니다. Streamlit Secrets에 "
+                "`APP_BASE_URL = \"https://<app>.streamlit.app\"`를 추가하세요."
+            )
 
 st.divider()
 st.subheader(f"{selected_date} 출석 현황")
