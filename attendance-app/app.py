@@ -932,44 +932,7 @@ with tab_dashboard:
                 )
                 level_weekend_present[level_name][day_code] += present_cnt
 
-        level_fig = go.Figure()
-        x_levels = ["중등부", "고등부"]
-        level_fig.add_trace(
-            go.Scatter(
-                name="토요일",
-                x=x_levels,
-                y=[
-                    level_weekend_present["중등부"]["sat"],
-                    level_weekend_present["고등부"]["sat"],
-                ],
-                mode="lines+markers+text",
-                text=[
-                    level_weekend_present["중등부"]["sat"],
-                    level_weekend_present["고등부"]["sat"],
-                ],
-                textposition="top center",
-                line=dict(color="#22c55e", width=3),
-                marker=dict(size=9),
-            )
-        )
-        level_fig.add_trace(
-            go.Scatter(
-                name="일요일",
-                x=x_levels,
-                y=[
-                    level_weekend_present["중등부"]["sun"],
-                    level_weekend_present["고등부"]["sun"],
-                ],
-                mode="lines+markers+text",
-                text=[
-                    level_weekend_present["중등부"]["sun"],
-                    level_weekend_present["고등부"]["sun"],
-                ],
-                textposition="top center",
-                line=dict(color="#f97316", width=3),
-                marker=dict(size=9),
-            )
-        )
+        x_days = ["토요일", "일요일"]
         max_level_val = max(
             level_weekend_present["중등부"]["sat"],
             level_weekend_present["중등부"]["sun"],
@@ -977,15 +940,64 @@ with tab_dashboard:
             level_weekend_present["고등부"]["sun"],
             1,
         )
-        level_fig.update_layout(
-            yaxis=dict(title="출석 인원(명)", range=[0, max_level_val * 1.35]),
-            xaxis=dict(title="부서"),
-            margin=dict(l=20, r=20, t=20, b=20),
-            legend=dict(title="요일"),
-            template="plotly_dark",
-            height=300,
-        )
-        st.plotly_chart(level_fig, use_container_width=True, config={"displayModeBar": False})
+        level_chart_cols = st.columns(2)
+        with level_chart_cols[0]:
+            middle_fig = go.Figure()
+            middle_vals = [
+                level_weekend_present["중등부"]["sat"],
+                level_weekend_present["중등부"]["sun"],
+            ]
+            middle_fig.add_trace(
+                go.Scatter(
+                    name="중등부",
+                    x=x_days,
+                    y=middle_vals,
+                    mode="lines+markers+text",
+                    text=middle_vals,
+                    textposition="top center",
+                    line=dict(color="#38bdf8", width=3),
+                    marker=dict(size=9),
+                    showlegend=False,
+                )
+            )
+            middle_fig.update_layout(
+                title="중등부 라인 차트",
+                yaxis=dict(title="출석 인원(명)", range=[0, max_level_val * 1.35]),
+                xaxis=dict(title="요일"),
+                margin=dict(l=20, r=20, t=40, b=20),
+                template="plotly_dark",
+                height=300,
+            )
+            st.plotly_chart(middle_fig, use_container_width=True, config={"displayModeBar": False})
+
+        with level_chart_cols[1]:
+            high_fig = go.Figure()
+            high_vals = [
+                level_weekend_present["고등부"]["sat"],
+                level_weekend_present["고등부"]["sun"],
+            ]
+            high_fig.add_trace(
+                go.Scatter(
+                    name="고등부",
+                    x=x_days,
+                    y=high_vals,
+                    mode="lines+markers+text",
+                    text=high_vals,
+                    textposition="top center",
+                    line=dict(color="#f97316", width=3),
+                    marker=dict(size=9),
+                    showlegend=False,
+                )
+            )
+            high_fig.update_layout(
+                title="고등부 라인 차트",
+                yaxis=dict(title="출석 인원(명)", range=[0, max_level_val * 1.35]),
+                xaxis=dict(title="요일"),
+                margin=dict(l=20, r=20, t=40, b=20),
+                template="plotly_dark",
+                height=300,
+            )
+            st.plotly_chart(high_fig, use_container_width=True, config={"displayModeBar": False})
 
         sibling_total = Counter()
         sibling_by_level_day = {
