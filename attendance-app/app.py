@@ -765,15 +765,18 @@ else:
                 week_agg[week_key]["sun_present"] += present_cnt
 
         weekly_rate_data = []
+        week_note_data = []
         for idx, (week_key, agg) in enumerate(sorted(week_agg.items(), key=lambda x: x[0])):
             week_start_date = date.fromisoformat(week_key)
             week_label = week_label_from_sunday(week_start_date)
+            sat_count = agg["sat_present"]
+            sun_count = agg["sun_present"]
             weekly_rate_data.append(
                 {
                     "week": week_label,
                     "week_order": idx,
                     "day_type": "토요일",
-                    "attendance_count": agg["sat_present"],
+                    "attendance_count": sat_count,
                 }
             )
             weekly_rate_data.append(
@@ -781,7 +784,14 @@ else:
                     "week": week_label,
                     "week_order": idx,
                     "day_type": "일요일",
-                    "attendance_count": agg["sun_present"],
+                    "attendance_count": sun_count,
+                }
+            )
+            week_note_data.append(
+                {
+                    "week": week_label,
+                    "week_order": idx,
+                    "label": f"토 {sat_count} / 일 {sun_count}",
                 }
             )
 
@@ -816,23 +826,21 @@ else:
                 ),
             )
         )
-        weekly_count_text = (
-            alt.Chart(alt.Data(values=weekly_rate_data))
+        weekly_note_text = (
+            alt.Chart(alt.Data(values=week_note_data))
             .mark_text(
-                dy=12,
-                color="white",
-                size=12,
+                dy=-6,
+                color="#cbd5e1",
+                size=10,
                 fontWeight="bold",
-                stroke="#111827",
-                strokeWidth=2,
             )
             .encode(
                 x=alt.X("week:N", sort=alt.SortField(field="week_order", order="ascending")),
-                y=alt.Y("attendance_count:Q"),
-                text=alt.Text("attendance_count:Q"),
+                y=alt.YDatum(0),
+                text=alt.Text("label:N"),
             )
         )
-        trend_chart = alt.layer(weekly_line, weekly_points, weekly_count_text).properties(height=320)
+        trend_chart = alt.layer(weekly_line, weekly_points, weekly_note_text).properties(height=320)
         st.altair_chart(trend_chart, use_container_width=True)
 
 st.divider()
