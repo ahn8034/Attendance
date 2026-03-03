@@ -2,6 +2,7 @@ import os
 from collections import Counter, defaultdict
 from datetime import date, timedelta
 from html import escape
+from urllib.parse import urlencode, quote_plus
 
 import altair as alt
 import streamlit as st
@@ -198,6 +199,93 @@ def normalize_assistant_teacher(raw_value) -> str:
             deduped.append(name)
             seen.add(name)
     return deduped[0] if deduped else "-"
+
+
+def get_query_value(name: str) -> str:
+    value = st.query_params.get(name)
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        return value[0] if value else ""
+    return str(value)
+
+
+def get_student_info_map(class_rows):
+    info = {}
+    for r in class_rows:
+        sid = r.get("student_id")
+        if sid and sid not in info:
+            info[sid] = r
+    return info
+
+
+def handle_qr_checkin(supabase: Client, class_rows, class_id_map):
+    qr_student_id = get_query_value("qr_student_id").strip()
+    qr_date = get_query_value("qr_date").strip()
+    qr_status = normalize_status(get_query_value("qr_status").strip() or "present")
+    qr_source = get_query_value("source").strip()
+
+    if not qr_student_id or not qr_date:
+        return
+    if qr_source != "qr":
+        return
+
+    try:
+        attendance_date = date.fromisoformat(qr_date)
+    except ValueError:
+        st.error("QR 링크의 날짜 형식이 올바르지 않습니다.")
+        return
+
+    if day_code_from_date(attendance_date) not in {"sat", "sun"}:
+        st.error("QR 출석은 토요일/일요일만 가능합니다.")
+        return
+
+    student_info_map = get_student_info_map(class_rows)
+    student = student_info_map.get(qr_student_id)
+    if not student:
+        st.error("QR 링크의 학생 정보를 찾을 수 없습니다.")
+        return
+
+    class_key = (student["level"], student["grade"], student["class_no"])
+    school_class_id = class_id_map.get(class_key)
+    if not school_class_id:
+        st.error("학생의 반 정보(school_class_id)를 찾을 수 없습니다.")
+        return
+
+    checkin_key = f"{qr_student_id}:{qr_date}:{qr_status}"
+    if st.session_state.get("qr_checkin_key") == checkin_key:
+        return
+
+    try:
+        save_attendance(
+            client=supabase,
+            attendance_date=attendance_date,
+            student_id=qr_student_id,
+            school_class_id=school_class_id,
+            status=qr_status,
+            note="QR check-in",
+        )
+        st.session_state["qr_checkin_key"] = checkin_key
+        st.success(
+            f"QR 출석 완료: {student['student_name']} / {attendance_date} / "
+            f"{day_label_from_date(attendance_date)}"
+        )
+    except Exception as e:
+        st.error(f"QR 출석 처리 실패: {e}")
+
+
+def build_qr_checkin_url(base_url: str, student_id: str, attendance_date: date, status: str) -> str:
+    params = urlencode(
+        {
+            "source": "qr",
+            "qr_student_id": student_id,
+            "qr_date": attendance_date.isoformat(),
+            "qr_status": normalize_status(status),
+        }
+    )
+    if base_url:
+        return f"{base_url.rstrip('/')}/?{params}"
+    return f"?{params}"
 
 
 def build_day_pie_chart(day_label: str, present_count: int, absent_count: int):
@@ -520,6 +608,8 @@ if not class_options:
     st.warning("반 정보가 없습니다. v_class_detail 데이터를 확인하세요.")
     st.stop()
 
+handle_qr_checkin(supabase, class_rows, class_id_map)
+
 render_weekly_section(
     supabase=supabase,
     class_options=class_options,
@@ -698,6 +788,41 @@ if submitted:
                 st.success(f"저장 완료: {student['student_name']} ({status})")
             except Exception as e:
                 st.error(f"저장 실패: {e}")
+
+st.markdown("#### QR 출석 링크 생성")
+qr_cols = st.columns(4)
+with qr_cols[0]:
+    qr_date = st.date_input("QR 날짜", value=selected_date, key="qr_date_input")
+with qr_cols[1]:
+    qr_student_label = st.selectbox("QR 학생", list(student_options.keys()), key="qr_student_label")
+with qr_cols[2]:
+    qr_status = st.selectbox("QR 상태", ["present", "absent"], index=0, key="qr_status")
+with qr_cols[3]:
+    app_base_url = st.text_input(
+        "앱 URL(배포 주소)",
+        value=st.secrets.get("APP_BASE_URL", ""),
+        placeholder="https://xxxx.streamlit.app",
+        key="app_base_url",
+    )
+
+if day_code_from_date(qr_date) not in {"sat", "sun"}:
+    st.info("QR 날짜는 토요일/일요일만 선택하세요.")
+else:
+    qr_student = student_options[qr_student_label]
+    qr_url = build_qr_checkin_url(
+        base_url=app_base_url,
+        student_id=qr_student["student_id"],
+        attendance_date=qr_date,
+        status=qr_status,
+    )
+    st.code(qr_url)
+    if app_base_url:
+        st.image(
+            f"https://quickchart.io/qr?size=220&text={quote_plus(qr_url)}",
+            caption="학생이 스캔하면 자동 출석 처리됩니다.",
+        )
+    else:
+        st.warning("배포 URL을 입력하면 QR 이미지를 생성할 수 있습니다.")
 
 st.divider()
 st.subheader(f"{selected_date} 출석 현황")
