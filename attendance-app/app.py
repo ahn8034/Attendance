@@ -223,14 +223,8 @@ def build_day_pie_chart(day_label: str, present_count: int, absent_count: int):
             alt.Tooltip("percent:Q", title="비율(%)", format=".1f"),
         ],
     )
-    labels = (
-        base.transform_filter("datum.count > 0")
-        .mark_text(radius=78, size=11, color="white")
-        .encode(theta=alt.Theta("count:Q"), text=alt.Text("label:N"))
-        .transform_calculate(label="datum.count + '명'")
-    )
     return (
-        alt.layer(pie, labels)
+        alt.layer(pie)
         .properties(title=day_label)
         .configure_view(strokeOpacity=0)
     )
@@ -567,12 +561,10 @@ else:
             weekend_counts["sun_present"] += present_cnt
             weekend_counts["sun_absent"] += absent_cnt
 
-    metric_cols = st.columns(5)
+    metric_cols = st.columns(3)
     metric_cols[0].metric("학생 수(교사 제외)", unique_students)
-    metric_cols[1].metric("토 출석/결석", f"{weekend_counts.get('sat_present', 0)} / {weekend_counts.get('sat_absent', 0)}")
-    metric_cols[2].metric("일 출석/결석", f"{weekend_counts.get('sun_present', 0)} / {weekend_counts.get('sun_absent', 0)}")
-    metric_cols[3].metric("전체 출석", status_counts.get("present", 0))
-    metric_cols[4].metric("전체 결석", status_counts.get("absent", 0))
+    metric_cols[1].metric("전체 출석", status_counts.get("present", 0))
+    metric_cols[2].metric("전체 결석", status_counts.get("absent", 0))
 
     chart_col1, chart_col2 = st.columns(2)
     with chart_col1:
