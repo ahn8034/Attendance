@@ -208,12 +208,51 @@ def render_weekly_section(
 ):
     st.subheader("주차별 전체 출석 현황 (일요일 기준)")
 
-    week_anchor = st.date_input("주차 기준일", value=default_anchor, key="week_anchor")
-    days_since_sunday = (week_anchor.weekday() + 1) % 7
-    week_start = week_anchor - timedelta(days=days_since_sunday)
+    year_options = [default_anchor.year - 1, default_anchor.year, default_anchor.year + 1]
+    selected_year = st.selectbox(
+        "기준 연도",
+        year_options,
+        index=1,
+        key="week_year",
+    )
+    selected_month = st.selectbox(
+        "기준 월",
+        list(range(1, 13)),
+        index=default_anchor.month - 1,
+        key="week_month",
+        format_func=lambda m: f"{m}월",
+    )
+    selected_week_no = st.selectbox(
+        "주차",
+        [1, 2, 3, 4, 5],
+        index=0,
+        key="week_no",
+        format_func=lambda w: f"{w}주차",
+    )
+
+    month_first = date(selected_year, selected_month, 1)
+    next_month_first = (
+        date(selected_year + 1, 1, 1)
+        if selected_month == 12
+        else date(selected_year, selected_month + 1, 1)
+    )
+    month_last = next_month_first - timedelta(days=1)
+    days_to_sunday = (6 - month_first.weekday()) % 7
+    first_sunday = month_first + timedelta(days=days_to_sunday)
+    sundays = []
+    cursor = first_sunday
+    while cursor <= month_last:
+        sundays.append(cursor)
+        cursor += timedelta(days=7)
+
+    if selected_week_no > len(sundays):
+        st.warning(f"{selected_year}년 {selected_month}월은 {len(sundays)}주차까지만 있습니다.")
+        return
+
+    week_start = sundays[selected_week_no - 1]
     week_end = week_start + timedelta(days=6)
 
-    st.caption(f"기준 주차: {week_start} ~ {week_end} (일~토)")
+    st.caption(f"기준 주차: {selected_year}년 {selected_month}월 {selected_week_no}주차 ({week_start} ~ {week_end})")
 
     week_class_filter_options = [("전체", 0, 0)] + class_options
     selected_week_class = st.selectbox(
