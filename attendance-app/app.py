@@ -274,6 +274,14 @@ week_end = week_start + timedelta(days=6)
 
 st.caption(f"기준 주차: {week_start} ~ {week_end} (일~토)")
 
+week_class_filter_options = [("전체", 0, 0)] + class_options
+selected_week_class = st.selectbox(
+    "주간 반 필터",
+    week_class_filter_options,
+    index=0,
+    format_func=lambda c: "전체" if c[0] == "전체" else f"{c[0]} {c[1]}학년 {c[2]}반",
+)
+
 try:
     weekly_rows = fetch_roster_by_range(supabase, week_start, week_end)
 except Exception as e:
@@ -283,7 +291,8 @@ except Exception as e:
 weekly_filtered = [
     r
     for r in weekly_rows
-    if (r["level"], r["grade"], r["class_no"]) == selected_class
+    if selected_week_class[0] == "전체"
+    or (r["level"], r["grade"], r["class_no"]) == selected_week_class
 ]
 
 rows_by_student = defaultdict(list)
@@ -294,7 +303,23 @@ weekly_display = []
 weekly_status_counts = Counter()
 sunday_iso = week_start.isoformat()
 
-for student in sorted(class_students, key=lambda x: x["student_name"]):
+weekly_students = class_rows
+if selected_week_class[0] != "전체":
+    weekly_students = [
+        r
+        for r in class_rows
+        if (r["level"], r["grade"], r["class_no"]) == selected_week_class
+    ]
+
+seen = set()
+unique_weekly_students = []
+for s in weekly_students:
+    if s["student_id"] in seen:
+        continue
+    seen.add(s["student_id"])
+    unique_weekly_students.append(s)
+
+for student in sorted(unique_weekly_students, key=lambda x: x["student_name"]):
     student_rows = rows_by_student.get(student["student_id"], [])
     sunday_row = next((r for r in student_rows if r["attendance_date"] == sunday_iso), None)
     latest_row = max(student_rows, key=lambda x: x["attendance_date"]) if student_rows else None
@@ -306,6 +331,7 @@ for student in sorted(class_students, key=lambda x: x["student_name"]):
     weekly_display.append(
         {
             "학생": student["student_name"],
+            "반": f"{student['level']} {student['grade']}학년 {student['class_no']}반",
             "주간상태": status,
             "기록일": chosen["attendance_date"] if chosen else "-",
             "비고": chosen.get("note") if chosen else None,
