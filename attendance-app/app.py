@@ -1,6 +1,7 @@
 import os
 from collections import Counter, defaultdict
 from datetime import date, timedelta
+from html import escape
 
 import streamlit as st
 from supabase import Client, create_client
@@ -85,6 +86,18 @@ def fetch_class_detail(client: Client):
     return result.data or []
 
 
+def fetch_class_summary(client: Client):
+    result = (
+        client.table("v_class_summary")
+        .select("level, grade, class_no, homeroom_teacher")
+        .order("level")
+        .order("grade")
+        .order("class_no")
+        .execute()
+    )
+    return result.data or []
+
+
 def fetch_school_class_map(client: Client):
     rows = (
         client.table("school_class")
@@ -131,6 +144,61 @@ def save_attendance(
         client.table("attendance").insert(payload).execute()
 
 
+def format_status_symbol(status: str) -> str:
+    if status == "present":
+        return "○"
+    if status == "late":
+        return "△"
+    return "×"
+
+
+def render_class_board(level_name: str, class_keys, students_by_class, status_by_student, homeroom_map):
+    if not class_keys:
+        return
+
+    max_students = max(len(students_by_class.get(c, [])) for c in class_keys)
+
+    html = []
+    html.append("<style>.board{border-collapse:collapse;width:100%;font-size:14px}")
+    html.append(".board th,.board td{border:1px solid #444;padding:4px 6px;text-align:center}")
+    html.append(".board th{background:#1f2937;color:#fff}")
+    html.append(".board .left{background:#111827;color:#fff;min-width:48px}")
+    html.append(".board .name{background:#0f172a;color:#e5e7eb;text-align:left}")
+    html.append(".board .mark{background:#0ea5e9;color:#001018;font-weight:700;min-width:30px}")
+    html.append(".board .empty{background:#1f2937;color:#6b7280}")
+    html.append("</style>")
+
+    html.append(f"<h4>{escape(level_name)}</h4>")
+    html.append("<table class='board'>")
+    html.append("<tr><th class='left'>분반</th>")
+    for level, grade, class_no in class_keys:
+        html.append(f"<th colspan='2'>{grade}-{class_no}</th>")
+    html.append("</tr>")
+
+    html.append("<tr><td class='left'>담임</td>")
+    for class_key in class_keys:
+        teacher = homeroom_map.get(class_key) or "-"
+        html.append(f"<td class='name'>{escape(teacher)}</td><td class='mark empty'></td>")
+    html.append("</tr>")
+
+    for idx in range(max_students):
+        html.append(f"<tr><td class='left'>{idx + 1}</td>")
+        for class_key in class_keys:
+            students = students_by_class.get(class_key, [])
+            if idx < len(students):
+                student = students[idx]
+                symbol = format_status_symbol(status_by_student.get(student["student_id"], "absent"))
+                html.append(
+                    f"<td class='name'>{escape(student['student_name'])}</td><td class='mark'>{symbol}</td>"
+                )
+            else:
+                html.append("<td class='empty'></td><td class='empty'></td>")
+        html.append("</tr>")
+
+    html.append("</table>")
+    st.markdown("".join(html), unsafe_allow_html=True)
+
+
 st.title("출석부 앱")
 st.caption("Streamlit + Supabase")
 
@@ -149,6 +217,7 @@ except Exception as e:
 try:
     all_rows = fetch_all_roster(supabase)
     class_rows = fetch_class_detail(supabase)
+    class_summary_rows = fetch_class_summary(supabase)
     class_id_map = fetch_school_class_map(supabase)
 except Exception as e:
     st.error(f"초기 데이터 조회 실패: {e}")
@@ -302,6 +371,7 @@ for r in weekly_filtered:
 weekly_display = []
 weekly_status_counts = Counter()
 sunday_iso = week_start.isoformat()
+status_by_student = {}
 
 weekly_students = class_rows
 if selected_week_class[0] != "전체":
@@ -326,6 +396,7 @@ for student in sorted(unique_weekly_students, key=lambda x: x["student_name"]):
     chosen = sunday_row or latest_row
 
     status = chosen["status"] if chosen else "absent"
+    status_by_student[student["student_id"]] = status
     weekly_status_counts[status] += 1
 
     weekly_display.append(
@@ -345,4 +416,31 @@ else:
     w_cols[0].metric("출석", weekly_status_counts.get("present", 0))
     w_cols[1].metric("지각", weekly_status_counts.get("late", 0))
     w_cols[2].metric("결석", weekly_status_counts.get("absent", 0))
+
+    homeroom_map = {
+        (r["level"], r["grade"], r["class_no"]): r.get("homeroom_teacher")
+        for r in class_summary_rows
+    }
+    students_by_class = defaultdict(list)
+    for student in sorted(unique_weekly_students, key=lambda x: x["student_name"]):
+        key = (student["level"], student["grade"], student["class_no"])
+        students_by_class[key].append(student)
+
+    if selected_week_class[0] == "전체":
+        level_keys = sorted({(s["level"], s["grade"], s["class_no"]) for s in unique_weekly_students})
+        middle_keys = [k for k in level_keys if k[0] == "middle"]
+        high_keys = [k for k in level_keys if k[0] == "high"]
+        render_class_board("중등부", middle_keys, students_by_class, status_by_student, homeroom_map)
+        render_class_board("고등부", high_keys, students_by_class, status_by_student, homeroom_map)
+    else:
+        level_label = "중등부" if selected_week_class[0] == "middle" else "고등부"
+        render_class_board(
+            level_label,
+            [selected_week_class],
+            students_by_class,
+            status_by_student,
+            homeroom_map,
+        )
+
+    st.caption("주간 원본(검증용)")
     st.dataframe(weekly_display, use_container_width=True)
