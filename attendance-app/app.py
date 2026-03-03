@@ -189,7 +189,9 @@ def render_class_board(
     html.append(".board th{background:#1f2937;color:#fff}")
     html.append(".board .left{background:#111827;color:#fff;min-width:48px}")
     html.append(".board .name{background:#0f172a;color:#e5e7eb;text-align:left}")
-    html.append(".board .mark{background:#0ea5e9;color:#001018;font-weight:700;min-width:30px}")
+    html.append(".board .mark{font-weight:700;min-width:30px}")
+    html.append(".board .mark-present{background:#0ea5e9;color:#001018}")
+    html.append(".board .mark-absent{background:#ef4444;color:#ffffff}")
     html.append(".board .empty{background:#1f2937;color:#6b7280}")
     html.append("</style>")
 
@@ -218,9 +220,11 @@ def render_class_board(
             students = students_by_class.get(class_key, [])
             if idx < len(students):
                 student = students[idx]
-                symbol = format_status_symbol(status_by_student.get(student["student_id"], "absent"))
+                raw_status = status_by_student.get(student["student_id"], "absent")
+                symbol = format_status_symbol(raw_status)
+                mark_class = "mark-present" if raw_status == "present" else "mark-absent"
                 html.append(
-                    f"<td class='name'>{escape(student['student_name'])}</td><td class='mark'>{symbol}</td>"
+                    f"<td class='name'>{escape(student['student_name'])}</td><td class='mark {mark_class}'>{symbol}</td>"
                 )
             else:
                 html.append("<td class='empty'></td><td class='empty'></td>")
