@@ -136,6 +136,23 @@ def fetch_class_summary(client: Client):
     return result.data or []
 
 
+def fetch_class_teacher_ids(client: Client):
+    result = client.table("class_teacher").select("teacher_id").execute()
+    rows = result.data or []
+    return sorted({r.get("teacher_id") for r in rows if r.get("teacher_id")})
+
+
+def fetch_teacher_attendance_by_range(client: Client, start_date: date, end_date: date):
+    result = (
+        client.table("teacher_attendance")
+        .select("attendance_date, teacher_id")
+        .gte("attendance_date", start_date.isoformat())
+        .lte("attendance_date", end_date.isoformat())
+        .execute()
+    )
+    return result.data or []
+
+
 def save_attendance(
     client: Client,
     attendance_date: date,
@@ -799,12 +816,54 @@ with tab_dashboard:
                 weekend_counts["sun_present"] += present_cnt
                 weekend_counts["sun_absent"] += absent_cnt
 
+        teacher_total = 0
+        teacher_weekend_counts = Counter()
+        if date_student_status:
+            try:
+                teacher_ids = fetch_class_teacher_ids(supabase)
+                teacher_total = len(teacher_ids)
+                if teacher_total > 0:
+                    teacher_id_set = set(teacher_ids)
+                    all_dates = sorted(date_student_status.keys())
+                    teacher_rows = fetch_teacher_attendance_by_range(
+                        supabase,
+                        date.fromisoformat(all_dates[0]),
+                        date.fromisoformat(all_dates[-1]),
+                    )
+                    teacher_present_by_date = defaultdict(set)
+                    for row in teacher_rows:
+                        tid = row.get("teacher_id")
+                        adate = row.get("attendance_date")
+                        if tid in teacher_id_set and adate:
+                            teacher_present_by_date[adate].add(tid)
+
+                    for adate in all_dates:
+                        day_code = day_code_from_date(date.fromisoformat(adate))
+                        if day_code not in {"sat", "sun"}:
+                            continue
+                        present_cnt = len(teacher_present_by_date.get(adate, set()))
+                        absent_cnt = max(teacher_total - present_cnt, 0)
+                        if day_code == "sat":
+                            teacher_weekend_counts["sat_present"] += present_cnt
+                            teacher_weekend_counts["sat_absent"] += absent_cnt
+                        else:
+                            teacher_weekend_counts["sun_present"] += present_cnt
+                            teacher_weekend_counts["sun_absent"] += absent_cnt
+            except Exception:
+                st.warning("선생님 출석 데이터를 불러오지 못했습니다.")
+
         total_cols = st.columns(5)
         total_cols[0].metric("학생 수(교사 제외)", unique_students)
         total_cols[1].metric("토요일 출석", weekend_counts.get("sat_present", 0))
         total_cols[2].metric("토요일 결석", weekend_counts.get("sat_absent", 0))
         total_cols[3].metric("일요일 출석", weekend_counts.get("sun_present", 0))
         total_cols[4].metric("일요일 결석", weekend_counts.get("sun_absent", 0))
+        teacher_cols = st.columns(5)
+        teacher_cols[0].metric("선생님 수(담임/부담임)", teacher_total)
+        teacher_cols[1].metric("토요일 출석(선생님)", teacher_weekend_counts.get("sat_present", 0))
+        teacher_cols[2].metric("토요일 결석(선생님)", teacher_weekend_counts.get("sat_absent", 0))
+        teacher_cols[3].metric("일요일 출석(선생님)", teacher_weekend_counts.get("sun_present", 0))
+        teacher_cols[4].metric("일요일 결석(선생님)", teacher_weekend_counts.get("sun_absent", 0))
 
         chart_col1, chart_col2 = st.columns(2)
         with chart_col1:
