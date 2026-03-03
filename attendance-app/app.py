@@ -515,17 +515,28 @@ else:
 
     status_counts = Counter()
     date_counts = {}
+    weekend_counts = Counter()
     for adate, student_map in date_student_status.items():
+        day = date.fromisoformat(adate)
+        day_code = day_code_from_date(day)
         present_cnt = sum(1 for s in student_map.values() if s == "present")
         absent_cnt = max(unique_students - present_cnt, 0)
         status_counts["present"] += present_cnt
         status_counts["absent"] += absent_cnt
         date_counts[adate] = present_cnt + absent_cnt
+        if day_code == "sat":
+            weekend_counts["sat_present"] += present_cnt
+            weekend_counts["sat_absent"] += absent_cnt
+        elif day_code == "sun":
+            weekend_counts["sun_present"] += present_cnt
+            weekend_counts["sun_absent"] += absent_cnt
 
-    metric_cols = st.columns(3)
+    metric_cols = st.columns(5)
     metric_cols[0].metric("학생 수(교사 제외)", unique_students)
-    metric_cols[1].metric("출석", status_counts.get("present", 0))
-    metric_cols[2].metric("결석", status_counts.get("absent", 0))
+    metric_cols[1].metric("토 출석/결석", f"{weekend_counts.get('sat_present', 0)} / {weekend_counts.get('sat_absent', 0)}")
+    metric_cols[2].metric("일 출석/결석", f"{weekend_counts.get('sun_present', 0)} / {weekend_counts.get('sun_absent', 0)}")
+    metric_cols[3].metric("전체 출석", status_counts.get("present", 0))
+    metric_cols[4].metric("전체 결석", status_counts.get("absent", 0))
 
     chart_col1, chart_col2 = st.columns(2)
     with chart_col1:
@@ -560,8 +571,11 @@ else:
             .mark_text(radius=68, size=11, color="white")
             .encode(
                 theta=alt.Theta("count:Q"),
-                text=alt.Text("percent:Q", format=".1f'%'"),
+                text=alt.Text("label:N"),
             )
+        )
+        status_labels = status_labels.transform_calculate(
+            label="format(datum.percent, '.1f') + '% (' + datum.count + ')'"
         )
         status_pie_chart = (
             alt.layer(status_pie_chart, status_labels)
@@ -606,7 +620,17 @@ else:
                 tooltip=["week:N", "day_type:N", "attendance_count:Q"],
             )
         )
-        st.altair_chart(weekly_count_chart, use_container_width=True)
+        weekly_count_text = (
+            alt.Chart(alt.Data(values=weekly_rate_data))
+            .mark_text(dy=-8, color="white", size=11)
+            .encode(
+                x=alt.X("week:N"),
+                xOffset=alt.XOffset("day_type:N"),
+                y=alt.Y("attendance_count:Q"),
+                text=alt.Text("attendance_count:Q"),
+            )
+        )
+        st.altair_chart(alt.layer(weekly_count_chart, weekly_count_text), use_container_width=True)
 
 st.divider()
 st.subheader("출석 입력")
