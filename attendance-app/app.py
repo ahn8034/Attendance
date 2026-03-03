@@ -1,5 +1,6 @@
 import os
 from datetime import date
+from collections import Counter, defaultdict
 
 import streamlit as st
 from supabase import Client, create_client
@@ -55,6 +56,17 @@ def fetch_attendance(client: Client, attendance_date: date):
     return result.data or []
 
 
+def fetch_all_attendance(client: Client):
+    result = (
+        client.table("attendance")
+        .select("id, attendance_date, attendee_name, status, note, created_by, created_at")
+        .order("attendance_date", desc=True)
+        .order("attendee_name")
+        .execute()
+    )
+    return result.data or []
+
+
 st.title("출석부 앱")
 st.caption("Streamlit + Supabase")
 
@@ -64,6 +76,50 @@ except Exception as e:
     st.error(str(e))
     st.stop()
 
+st.subheader("전체 출석 데이터")
+try:
+    all_rows = fetch_all_attendance(supabase)
+except Exception as e:
+    st.error(f"전체 조회 실패: {e}")
+    st.stop()
+
+if not all_rows:
+    st.info("저장된 출석 데이터가 없습니다.")
+else:
+    status_counts = Counter(row["status"] for row in all_rows)
+    unique_students = len({row["attendee_name"] for row in all_rows})
+    date_counts = defaultdict(int)
+    for row in all_rows:
+        date_counts[row["attendance_date"]] += 1
+
+    metric_cols = st.columns(4)
+    metric_cols[0].metric("전체 기록", len(all_rows))
+    metric_cols[1].metric("학생 수", unique_students)
+    metric_cols[2].metric("출석", status_counts.get("present", 0))
+    metric_cols[3].metric("결석", status_counts.get("absent", 0))
+
+    chart_col1, chart_col2 = st.columns(2)
+    with chart_col1:
+        st.caption("상태별 분포")
+        st.bar_chart(
+            {
+                "count": {
+                    "present": status_counts.get("present", 0),
+                    "late": status_counts.get("late", 0),
+                    "absent": status_counts.get("absent", 0),
+                }
+            }
+        )
+    with chart_col2:
+        st.caption("날짜별 기록 수")
+        st.line_chart(
+            {"count": dict(sorted(date_counts.items(), key=lambda x: x[0]))}
+        )
+
+    st.caption("원본 데이터")
+    st.dataframe(all_rows, use_container_width=True)
+
+st.divider()
 col1, col2 = st.columns([1, 2])
 with col1:
     selected_date = st.date_input("출석 날짜", value=date.today())
