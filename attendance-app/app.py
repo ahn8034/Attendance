@@ -1065,28 +1065,28 @@ with tab_dashboard:
         with trend_chart_rows[0][0]:
             st.subheader("중등부 형제 트렌드")
             render_single_sibling_trend(
-                "중등부",
+                "중등부 형제",
                 sibling_by_level_day["중등부"]["sat"].get("형제", 0),
                 sibling_by_level_day["중등부"]["sun"].get("형제", 0),
             )
         with trend_chart_rows[0][1]:
             st.subheader("중등부 자매 트렌드")
             render_single_sibling_trend(
-                "중등부",
+                "중등부 자매",
                 sibling_by_level_day["중등부"]["sat"].get("자매", 0),
                 sibling_by_level_day["중등부"]["sun"].get("자매", 0),
             )
         with trend_chart_rows[1][0]:
             st.subheader("고등부 형제 트렌드")
             render_single_sibling_trend(
-                "고등부",
+                "고등부 형제",
                 sibling_by_level_day["고등부"]["sat"].get("형제", 0),
                 sibling_by_level_day["고등부"]["sun"].get("형제", 0),
             )
         with trend_chart_rows[1][1]:
             st.subheader("고등부 자매 트렌드")
             render_single_sibling_trend(
-                "고등부",
+                "고등부 자매",
                 sibling_by_level_day["고등부"]["sat"].get("자매", 0),
                 sibling_by_level_day["고등부"]["sun"].get("자매", 0),
             )
