@@ -989,7 +989,12 @@ with tab_dashboard:
             "중등부": Counter(),
             "고등부": Counter(),
         }
-        for _, student_map in date_student_status.items():
+        sibling_by_day = {
+            "sat": Counter(),
+            "sun": Counter(),
+        }
+        for adate, student_map in date_student_status.items():
+            day_code = day_code_from_date(date.fromisoformat(adate))
             for sid, stt in student_map.items():
                 if stt != "present":
                     continue
@@ -1000,6 +1005,8 @@ with tab_dashboard:
                     sibling_total[sibling] += 1
                     if level_name in sibling_by_level:
                         sibling_by_level[level_name][sibling] += 1
+                    if day_code in {"sat", "sun"}:
+                        sibling_by_day[day_code][sibling] += 1
 
         sibling_total_counts = {
             "형제": sum(
@@ -1075,26 +1082,46 @@ with tab_dashboard:
                 f"{sibling_present_latest.get('자매', 0)}/{sibling_total_counts['자매']}",
             )
             total_fig = go.Figure()
-            x_total = ["형제", "자매"]
-            y_total = [sibling_total.get("형제", 0), sibling_total.get("자매", 0)]
+            x_total = ["토요일", "일요일"]
+            y_total_brother = [
+                sibling_by_day["sat"].get("형제", 0),
+                sibling_by_day["sun"].get("형제", 0),
+            ]
+            y_total_sister = [
+                sibling_by_day["sat"].get("자매", 0),
+                sibling_by_day["sun"].get("자매", 0),
+            ]
             total_fig.add_trace(
                 go.Bar(
+                    name="형제",
                     x=x_total,
-                    y=y_total,
-                    text=y_total,
+                    y=y_total_brother,
+                    text=y_total_brother,
                     textposition="outside",
-                    marker_color=["#38bdf8", "#f97316"],
+                    marker_color="#38bdf8",
                     cliponaxis=False,
                 )
             )
-            total_max = max(y_total + [1])
+            total_fig.add_trace(
+                go.Bar(
+                    name="자매",
+                    x=x_total,
+                    y=y_total_sister,
+                    text=y_total_sister,
+                    textposition="outside",
+                    marker_color="#f97316",
+                    cliponaxis=False,
+                )
+            )
+            total_max = max(y_total_brother + y_total_sister + [1])
             total_fig.update_layout(
+                barmode="group",
                 yaxis=dict(title="출석 인원(명)", range=[0, total_max * 1.35]),
-                xaxis=dict(title="구분"),
+                xaxis=dict(title="요일"),
                 margin=dict(l=20, r=20, t=20, b=20),
                 template="plotly_dark",
                 height=300,
-                showlegend=False,
+                legend=dict(title="구분"),
             )
             st.plotly_chart(total_fig, use_container_width=True, config={"displayModeBar": False})
 
