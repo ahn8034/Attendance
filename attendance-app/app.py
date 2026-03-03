@@ -823,6 +823,79 @@ with tab_dashboard:
             )
             st.plotly_chart(trend_fig, use_container_width=True, config={"displayModeBar": False})
 
+        st.caption("중등부 / 고등부 출석 인원 비교 (토/일)")
+        level_student_ids = {
+            "중등부": {r["student_id"] for r in class_rows if r.get("level") == "middle"},
+            "고등부": {r["student_id"] for r in class_rows if r.get("level") == "high"},
+        }
+        level_weekend_present = {
+            "중등부": {"sat": 0, "sun": 0},
+            "고등부": {"sat": 0, "sun": 0},
+        }
+        for adate, student_map in date_student_status.items():
+            day_code = day_code_from_date(date.fromisoformat(adate))
+            if day_code not in {"sat", "sun"}:
+                continue
+            for level_name, sids in level_student_ids.items():
+                present_cnt = sum(
+                    1 for sid, stt in student_map.items() if sid in sids and stt == "present"
+                )
+                level_weekend_present[level_name][day_code] += present_cnt
+
+        level_fig = go.Figure()
+        x_days = ["토요일", "일요일"]
+        level_fig.add_trace(
+            go.Bar(
+                name="중등부",
+                x=x_days,
+                y=[
+                    level_weekend_present["중등부"]["sat"],
+                    level_weekend_present["중등부"]["sun"],
+                ],
+                text=[
+                    level_weekend_present["중등부"]["sat"],
+                    level_weekend_present["중등부"]["sun"],
+                ],
+                textposition="outside",
+                marker_color="#38bdf8",
+                cliponaxis=False,
+            )
+        )
+        level_fig.add_trace(
+            go.Bar(
+                name="고등부",
+                x=x_days,
+                y=[
+                    level_weekend_present["고등부"]["sat"],
+                    level_weekend_present["고등부"]["sun"],
+                ],
+                text=[
+                    level_weekend_present["고등부"]["sat"],
+                    level_weekend_present["고등부"]["sun"],
+                ],
+                textposition="outside",
+                marker_color="#a78bfa",
+                cliponaxis=False,
+            )
+        )
+        max_level_val = max(
+            level_weekend_present["중등부"]["sat"],
+            level_weekend_present["중등부"]["sun"],
+            level_weekend_present["고등부"]["sat"],
+            level_weekend_present["고등부"]["sun"],
+            1,
+        )
+        level_fig.update_layout(
+            barmode="group",
+            yaxis=dict(title="출석 인원(명)", range=[0, max_level_val * 1.35]),
+            xaxis=dict(title="요일"),
+            margin=dict(l=20, r=20, t=20, b=20),
+            legend=dict(title="부서"),
+            template="plotly_dark",
+            height=300,
+        )
+        st.plotly_chart(level_fig, use_container_width=True, config={"displayModeBar": False})
+
 with tab_admin:
     st.markdown("#### 수동 출석 입력")
     manual_date = st.date_input("수동 출석 날짜", value=date.today(), key="manual_date_input")
