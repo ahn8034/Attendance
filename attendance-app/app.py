@@ -873,6 +873,40 @@ with tab_dashboard:
             "중등부": {r["student_id"] for r in class_rows if r.get("level") == "middle"},
             "고등부": {r["student_id"] for r in class_rows if r.get("level") == "high"},
         }
+        level_totals = {
+            "중등부": len(level_student_ids["중등부"]),
+            "고등부": len(level_student_ids["고등부"]),
+        }
+        all_dates = sorted(date_student_status.keys())
+        sat_dates = [d for d in all_dates if day_code_from_date(date.fromisoformat(d)) == "sat"]
+        sun_dates = [d for d in all_dates if day_code_from_date(date.fromisoformat(d)) == "sun"]
+        latest_sat = sat_dates[-1] if sat_dates else None
+        latest_sun = sun_dates[-1] if sun_dates else None
+
+        def level_present_for(adate: str | None, level_name: str) -> int:
+            if not adate:
+                return 0
+            student_map = date_student_status.get(adate, {})
+            return sum(
+                1
+                for sid, stt in student_map.items()
+                if sid in level_student_ids[level_name] and stt == "present"
+            )
+
+        sat_middle_present = level_present_for(latest_sat, "중등부")
+        sat_high_present = level_present_for(latest_sat, "고등부")
+        sun_middle_present = level_present_for(latest_sun, "중등부")
+        sun_high_present = level_present_for(latest_sun, "고등부")
+
+        st.caption(
+            f"토요일 중등부: {sat_middle_present}/{level_totals['중등부']} 출석, "
+            f"고등부: {sat_high_present}/{level_totals['고등부']} 출석"
+        )
+        st.caption(
+            f"일요일 중등부: {sun_middle_present}/{level_totals['중등부']} 출석, "
+            f"고등부: {sun_high_present}/{level_totals['고등부']} 출석"
+        )
+
         level_weekend_present = {
             "중등부": {"sat": 0, "sun": 0},
             "고등부": {"sat": 0, "sun": 0},
