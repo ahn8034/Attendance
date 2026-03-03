@@ -210,75 +210,93 @@ def get_query_value(name: str) -> str:
     return str(value)
 
 
-def get_student_info_map(class_rows):
-    info = {}
-    for r in class_rows:
-        sid = r.get("student_id")
-        if sid and sid not in info:
-            info[sid] = r
-    return info
+def find_student_id_by_name_in_class(client: Client, student_name: str, school_class_id: str) -> str:
+    students = (
+        client.table("student")
+        .select("id,name")
+        .eq("name", student_name)
+        .execute()
+    ).data or []
+    if not students:
+        return ""
+
+    matched_ids = []
+    for s in students:
+        link = (
+            client.table("student_class")
+            .select("student_id")
+            .eq("student_id", s["id"])
+            .eq("school_class_id", school_class_id)
+            .limit(1)
+            .execute()
+        ).data or []
+        if link:
+            matched_ids.append(s["id"])
+
+    if len(matched_ids) == 1:
+        return matched_ids[0]
+    return ""
 
 
-def handle_qr_checkin(supabase: Client, class_rows, class_id_map):
-    qr_student_id = get_query_value("qr_student_id").strip()
+def handle_qr_checkin(supabase: Client):
     qr_date = get_query_value("qr_date").strip()
     qr_status = normalize_status(get_query_value("qr_status").strip() or "present")
+    qr_school_class_id = get_query_value("qr_school_class_id").strip()
     qr_source = get_query_value("source").strip()
 
-    if not qr_student_id or not qr_date:
-        return
     if qr_source != "qr":
-        return
+        return False
+    if not qr_date or not qr_school_class_id:
+        st.error("QR 링크 파라미터가 누락되었습니다.")
+        return True
 
     try:
         attendance_date = date.fromisoformat(qr_date)
     except ValueError:
         st.error("QR 링크의 날짜 형식이 올바르지 않습니다.")
-        return
+        return True
 
     if day_code_from_date(attendance_date) not in {"sat", "sun"}:
         st.error("QR 출석은 토요일/일요일만 가능합니다.")
-        return
+        return True
 
-    student_info_map = get_student_info_map(class_rows)
-    student = student_info_map.get(qr_student_id)
-    if not student:
-        st.error("QR 링크의 학생 정보를 찾을 수 없습니다.")
-        return
+    st.title("QR 출석 체크인")
+    st.caption(f"{attendance_date} / {day_label_from_date(attendance_date)}")
+    student_name_input = st.text_input("이름을 입력하세요", placeholder="예: 강한")
+    submit = st.button("출석하기")
 
-    class_key = (student["level"], student["grade"], student["class_no"])
-    school_class_id = class_id_map.get(class_key)
-    if not school_class_id:
-        st.error("학생의 반 정보(school_class_id)를 찾을 수 없습니다.")
-        return
+    if submit:
+        if not student_name_input.strip():
+            st.warning("이름을 입력하세요.")
+            return True
+        try:
+            student_id = find_student_id_by_name_in_class(
+                supabase, student_name_input.strip(), qr_school_class_id
+            )
+            if not student_id:
+                st.error("해당 반에서 이름과 일치하는 학생을 찾지 못했습니다.")
+                return True
 
-    checkin_key = f"{qr_student_id}:{qr_date}:{qr_status}"
-    if st.session_state.get("qr_checkin_key") == checkin_key:
-        return
+            save_attendance(
+                client=supabase,
+                attendance_date=attendance_date,
+                student_id=student_id,
+                school_class_id=qr_school_class_id,
+                status=qr_status,
+                note="QR check-in (name)",
+            )
+            st.success(f"출석 완료: {student_name_input.strip()}")
+        except Exception as e:
+            st.error(f"QR 출석 처리 실패: {e}")
 
-    try:
-        save_attendance(
-            client=supabase,
-            attendance_date=attendance_date,
-            student_id=qr_student_id,
-            school_class_id=school_class_id,
-            status=qr_status,
-            note="QR check-in",
-        )
-        st.session_state["qr_checkin_key"] = checkin_key
-        st.success(
-            f"QR 출석 완료: {student['student_name']} / {attendance_date} / "
-            f"{day_label_from_date(attendance_date)}"
-        )
-    except Exception as e:
-        st.error(f"QR 출석 처리 실패: {e}")
+    return True
 
 
-def build_qr_checkin_url(base_url: str, student_id: str, attendance_date: date, status: str) -> str:
+def build_qr_checkin_url(base_url: str, school_class_id: str, attendance_date: date, status: str) -> str:
     params = urlencode(
         {
             "source": "qr",
-            "qr_student_id": student_id,
+            "qr_school_class_id": school_class_id,
             "qr_date": attendance_date.isoformat(),
             "qr_status": normalize_status(status),
         }
@@ -608,7 +626,8 @@ if not class_options:
     st.warning("반 정보가 없습니다. v_class_detail 데이터를 확인하세요.")
     st.stop()
 
-handle_qr_checkin(supabase, class_rows, class_id_map)
+if handle_qr_checkin(supabase):
+    st.stop()
 
 render_weekly_section(
     supabase=supabase,
@@ -794,7 +813,12 @@ qr_cols = st.columns(4)
 with qr_cols[0]:
     qr_date = st.date_input("QR 날짜", value=selected_date, key="qr_date_input")
 with qr_cols[1]:
-    qr_student_label = st.selectbox("QR 학생", list(student_options.keys()), key="qr_student_label")
+    qr_class_for_link = st.selectbox(
+        "QR 반",
+        class_options,
+        format_func=lambda c: f"{c[0]} {c[1]}학년 {c[2]}반",
+        key="qr_class_for_link",
+    )
 with qr_cols[2]:
     qr_status = st.selectbox("QR 상태", ["present", "absent"], index=0, key="qr_status")
 with qr_cols[3]:
@@ -808,21 +832,24 @@ with qr_cols[3]:
 if day_code_from_date(qr_date) not in {"sat", "sun"}:
     st.info("QR 날짜는 토요일/일요일만 선택하세요.")
 else:
-    qr_student = student_options[qr_student_label]
-    qr_url = build_qr_checkin_url(
-        base_url=app_base_url,
-        student_id=qr_student["student_id"],
-        attendance_date=qr_date,
-        status=qr_status,
-    )
-    st.code(qr_url)
-    if app_base_url:
-        st.image(
-            f"https://quickchart.io/qr?size=220&text={quote_plus(qr_url)}",
-            caption="학생이 스캔하면 자동 출석 처리됩니다.",
-        )
+    qr_class_id = class_id_map.get(qr_class_for_link, "")
+    if not qr_class_id:
+        st.warning("선택한 반의 school_class_id를 찾지 못했습니다.")
     else:
-        st.warning("배포 URL을 입력하면 QR 이미지를 생성할 수 있습니다.")
+        qr_url = build_qr_checkin_url(
+            base_url=app_base_url,
+            school_class_id=qr_class_id,
+            attendance_date=qr_date,
+            status=qr_status,
+        )
+        st.code(qr_url)
+        if app_base_url:
+            st.image(
+                f"https://quickchart.io/qr?size=220&text={quote_plus(qr_url)}",
+                caption="학생이 스캔하면 이름 입력 후 출석 처리됩니다.",
+            )
+        else:
+            st.warning("배포 URL을 입력하면 QR 이미지를 생성할 수 있습니다.")
 
 st.divider()
 st.subheader(f"{selected_date} 출석 현황")
