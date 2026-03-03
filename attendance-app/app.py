@@ -3,6 +3,7 @@ from collections import Counter, defaultdict
 from datetime import date, timedelta
 from html import escape
 
+import altair as alt
 import streamlit as st
 from supabase import Client, create_client
 
@@ -475,14 +476,27 @@ else:
     chart_col1, chart_col2 = st.columns(2)
     with chart_col1:
         st.caption("상태별 분포")
-        st.bar_chart(
-            {
-                "count": {
-                    "present": status_counts.get("present", 0),
-                    "absent": status_counts.get("absent", 0),
-                }
-            }
+        status_chart_data = [
+            {"status": "present", "count": status_counts.get("present", 0)},
+            {"status": "absent", "count": status_counts.get("absent", 0)},
+        ]
+        status_chart = (
+            alt.Chart(alt.Data(values=status_chart_data))
+            .mark_bar()
+            .encode(
+                x=alt.X("status:N", title="상태"),
+                y=alt.Y("count:Q", title="인원"),
+                color=alt.Color(
+                    "status:N",
+                    scale=alt.Scale(
+                        domain=["present", "absent"],
+                        range=["#0ea5e9", "#ef4444"],
+                    ),
+                    legend=None,
+                ),
+            )
         )
+        st.altair_chart(status_chart, use_container_width=True)
     with chart_col2:
         st.caption("날짜별 기록 수")
         st.line_chart({"count": dict(sorted(date_counts.items(), key=lambda x: x[0]))})
