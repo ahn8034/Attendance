@@ -874,9 +874,9 @@ qr_cols = st.columns(3)
 with qr_cols[0]:
     qr_date = st.date_input("QR 날짜", value=selected_date, key="qr_date_input")
 with qr_cols[1]:
-    st.caption("QR는 날짜별 1개 생성")
+    st.empty()
 with qr_cols[2]:
-    st.caption("QR 상태: present 고정")
+    st.empty()
 
 app_base_url = resolve_app_base_url()
 app_tz = get_app_timezone()
@@ -897,9 +897,9 @@ else:
     st.code(qr_url)
     if app_base_url:
         st.image(
-            f"https://quickchart.io/qr?size=220&text={quote_plus(qr_url)}",
+            f"https://quickchart.io/qr?size=170&text={quote_plus(qr_url)}",
             caption="학생이 스캔한 뒤 이름 입력 + source_key 선택으로 출석 처리됩니다.",
-            use_column_width=True,
+            width=170,
         )
     else:
         st.warning(
