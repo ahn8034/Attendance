@@ -1061,7 +1061,6 @@ with tab_dashboard:
         }
         sib_col1, sib_col2 = st.columns(2)
         with sib_col1:
-            st.subheader("전체 형제/자매 출석 통계")
             sibling_summary_cols = st.columns(2)
             with sibling_summary_cols[0]:
                 st.markdown("<div class='dept-title'>형제</div>", unsafe_allow_html=True)
@@ -1077,7 +1076,6 @@ with tab_dashboard:
                 sister_metrics[2].metric("일요일 출석", sibling_by_level_day["중등부"]["sun"].get("자매", 0) + sibling_by_level_day["고등부"]["sun"].get("자매", 0))
 
         with sib_col2:
-            st.subheader("중등부/고등부별 형제/자매 출석 통계")
             level_sibling_cols = st.columns(2)
             with level_sibling_cols[0]:
                 st.markdown("<div class='dept-title'>중등부</div>", unsafe_allow_html=True)
@@ -1129,7 +1127,7 @@ with tab_dashboard:
             1,
         )
 
-        def render_single_sibling_trend(title: str, x_label: str, sat_val: int, sun_val: int):
+        def render_single_sibling_trend(x_label: str, sat_val: int, sun_val: int):
             fig = go.Figure()
             fig.add_trace(
                 go.Scatter(
@@ -1154,7 +1152,6 @@ with tab_dashboard:
                 )
             )
             fig.update_layout(
-                title=title,
                 yaxis=dict(title="출석 인원(명)", range=[0, sibling_max * 1.35]),
                 xaxis=dict(title=""),
                 margin=dict(l=20, r=20, t=40, b=20),
@@ -1164,30 +1161,28 @@ with tab_dashboard:
             )
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
+        st.subheader("중등부 형제/자매 트렌드")
         with trend_chart_rows[0][0]:
             render_single_sibling_trend(
-                "중등부 형제 트렌드",
                 "중등부",
                 sibling_by_level_day["중등부"]["sat"].get("형제", 0),
                 sibling_by_level_day["중등부"]["sun"].get("형제", 0),
             )
         with trend_chart_rows[0][1]:
             render_single_sibling_trend(
-                "중등부 자매 트렌드",
                 "중등부",
                 sibling_by_level_day["중등부"]["sat"].get("자매", 0),
                 sibling_by_level_day["중등부"]["sun"].get("자매", 0),
             )
+        st.subheader("고등부 형제/자매 트렌드")
         with trend_chart_rows[1][0]:
             render_single_sibling_trend(
-                "고등부 형제 트렌드",
                 "고등부",
                 sibling_by_level_day["고등부"]["sat"].get("형제", 0),
                 sibling_by_level_day["고등부"]["sun"].get("형제", 0),
             )
         with trend_chart_rows[1][1]:
             render_single_sibling_trend(
-                "고등부 자매 트렌드",
                 "고등부",
                 sibling_by_level_day["고등부"]["sat"].get("자매", 0),
                 sibling_by_level_day["고등부"]["sun"].get("자매", 0),
