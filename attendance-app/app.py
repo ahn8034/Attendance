@@ -301,7 +301,7 @@ def render_weekly_section(
         seen.add(s["student_id"])
         unique_weekly_students.append(s)
 
-    for student in sorted(unique_weekly_students, key=lambda x: x["student_name"]):
+    for student in sorted(unique_weekly_students, key=lambda x: (x.get("student_name") or "")):
         student_rows = rows_by_student.get(student["student_id"], [])
         sunday_row = next((r for r in student_rows if r["attendance_date"] == sunday_iso), None)
         latest_row = max(student_rows, key=lambda x: x["attendance_date"]) if student_rows else None
@@ -335,7 +335,7 @@ def render_weekly_section(
         for r in class_summary_rows
     }
     students_by_class = defaultdict(list)
-    for student in sorted(unique_weekly_students, key=lambda x: x["student_name"]):
+    for student in sorted(unique_weekly_students, key=lambda x: (x.get("student_name") or "")):
         key = (student["level"], student["grade"], student["class_no"])
         students_by_class[key].append(student)
 
