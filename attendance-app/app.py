@@ -171,6 +171,18 @@ def day_label_from_date(value: date) -> str:
     return "평일"
 
 
+def week_label_from_sunday(week_start: date) -> str:
+    month_first = week_start.replace(day=1)
+    days_to_sunday = (6 - month_first.weekday()) % 7
+    first_sunday = month_first + timedelta(days=days_to_sunday)
+    if week_start < first_sunday:
+        week_no = 1
+    else:
+        week_no = ((week_start - first_sunday).days // 7) + 1
+    week_no = min(max(week_no, 1), 5)
+    return f"{week_no}주차"
+
+
 def normalize_assistant_teacher(raw_value) -> str:
     if not raw_value:
         return "-"
@@ -202,11 +214,11 @@ def render_class_board(
     max_students = max(len(students_by_class.get(c, [])) for c in class_keys)
 
     html = []
-    html.append("<style>.board{border-collapse:collapse;width:100%;font-size:14px}")
-    html.append(".board th,.board td{border:1px solid #444;padding:4px 6px;text-align:center}")
+    html.append("<style>.board{border-collapse:collapse;width:100%;font-size:12px;table-layout:auto}")
+    html.append(".board th,.board td{border:1px solid #444;padding:3px 4px;text-align:center;white-space:nowrap}")
     html.append(".board th{background:#1f2937;color:#fff}")
     html.append(".board .left{background:#111827;color:#fff;min-width:48px}")
-    html.append(".board .name{background:#0f172a;color:#e5e7eb;text-align:left}")
+    html.append(".board .name{background:#0f172a;color:#e5e7eb;text-align:left;font-size:11px}")
     html.append(".board .mark{font-weight:700;min-width:30px}")
     html.append(".board .mark-present{background:#0ea5e9;color:#001018}")
     html.append(".board .mark-absent{background:#ef4444;color:#ffffff}")
@@ -565,16 +577,18 @@ else:
 
         weekly_rate_data = []
         for week_key, agg in sorted(week_agg.items(), key=lambda x: x[0]):
+            week_start_date = date.fromisoformat(week_key)
+            week_label = week_label_from_sunday(week_start_date)
             sat_rate = round((agg["sat_present"] / unique_students) * 100, 1) if unique_students else 0
             sun_rate = round((agg["sun_present"] / unique_students) * 100, 1) if unique_students else 0
-            weekly_rate_data.append({"week": week_key, "day_type": "토요일", "attendance_rate": sat_rate})
-            weekly_rate_data.append({"week": week_key, "day_type": "일요일", "attendance_rate": sun_rate})
+            weekly_rate_data.append({"week": week_label, "day_type": "토요일", "attendance_rate": sat_rate})
+            weekly_rate_data.append({"week": week_label, "day_type": "일요일", "attendance_rate": sun_rate})
 
         weekly_rate_chart = (
             alt.Chart(alt.Data(values=weekly_rate_data))
             .mark_bar()
             .encode(
-                x=alt.X("week:N", title="주차(일요일 시작)"),
+                x=alt.X("week:N", title="주차"),
                 y=alt.Y("attendance_rate:Q", title="출석률(%)", scale=alt.Scale(domain=[0, 100])),
                 xOffset=alt.XOffset("day_type:N"),
                 color=alt.Color(
