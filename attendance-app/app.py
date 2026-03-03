@@ -199,6 +199,127 @@ def render_class_board(level_name: str, class_keys, students_by_class, status_by
     st.markdown("".join(html), unsafe_allow_html=True)
 
 
+def render_weekly_section(
+    supabase: Client,
+    class_options,
+    class_rows,
+    class_summary_rows,
+    default_anchor: date,
+):
+    st.subheader("주차별 전체 출석 현황 (일요일 기준)")
+
+    week_anchor = st.date_input("주차 기준일", value=default_anchor, key="week_anchor")
+    days_since_sunday = (week_anchor.weekday() + 1) % 7
+    week_start = week_anchor - timedelta(days=days_since_sunday)
+    week_end = week_start + timedelta(days=6)
+
+    st.caption(f"기준 주차: {week_start} ~ {week_end} (일~토)")
+
+    week_class_filter_options = [("전체", 0, 0)] + class_options
+    selected_week_class = st.selectbox(
+        "주간 반 필터",
+        week_class_filter_options,
+        index=0,
+        format_func=lambda c: "전체" if c[0] == "전체" else f"{c[0]} {c[1]}학년 {c[2]}반",
+        key="week_class_filter",
+    )
+
+    try:
+        weekly_rows = fetch_roster_by_range(supabase, week_start, week_end)
+    except Exception as e:
+        st.error(f"주간 조회 실패: {e}")
+        return
+
+    weekly_filtered = [
+        r
+        for r in weekly_rows
+        if selected_week_class[0] == "전체"
+        or (r["level"], r["grade"], r["class_no"]) == selected_week_class
+    ]
+
+    rows_by_student = defaultdict(list)
+    for r in weekly_filtered:
+        rows_by_student[r["student_id"]].append(r)
+
+    weekly_display = []
+    weekly_status_counts = Counter()
+    sunday_iso = week_start.isoformat()
+    status_by_student = {}
+
+    weekly_students = class_rows
+    if selected_week_class[0] != "전체":
+        weekly_students = [
+            r
+            for r in class_rows
+            if (r["level"], r["grade"], r["class_no"]) == selected_week_class
+        ]
+
+    seen = set()
+    unique_weekly_students = []
+    for s in weekly_students:
+        if s["student_id"] in seen:
+            continue
+        seen.add(s["student_id"])
+        unique_weekly_students.append(s)
+
+    for student in sorted(unique_weekly_students, key=lambda x: x["student_name"]):
+        student_rows = rows_by_student.get(student["student_id"], [])
+        sunday_row = next((r for r in student_rows if r["attendance_date"] == sunday_iso), None)
+        latest_row = max(student_rows, key=lambda x: x["attendance_date"]) if student_rows else None
+        chosen = sunday_row or latest_row
+
+        status = chosen["status"] if chosen else "absent"
+        status_by_student[student["student_id"]] = status
+        weekly_status_counts[status] += 1
+
+        weekly_display.append(
+            {
+                "학생": student["student_name"],
+                "반": f"{student['level']} {student['grade']}학년 {student['class_no']}반",
+                "주간상태": status,
+                "기록일": chosen["attendance_date"] if chosen else "-",
+                "비고": chosen.get("note") if chosen else None,
+            }
+        )
+
+    if not weekly_display:
+        st.info("해당 반의 학생 데이터가 없습니다.")
+        return
+
+    w_cols = st.columns(3)
+    w_cols[0].metric("출석", weekly_status_counts.get("present", 0))
+    w_cols[1].metric("지각", weekly_status_counts.get("late", 0))
+    w_cols[2].metric("결석", weekly_status_counts.get("absent", 0))
+
+    homeroom_map = {
+        (r["level"], r["grade"], r["class_no"]): r.get("homeroom_teacher")
+        for r in class_summary_rows
+    }
+    students_by_class = defaultdict(list)
+    for student in sorted(unique_weekly_students, key=lambda x: x["student_name"]):
+        key = (student["level"], student["grade"], student["class_no"])
+        students_by_class[key].append(student)
+
+    if selected_week_class[0] == "전체":
+        level_keys = sorted({(s["level"], s["grade"], s["class_no"]) for s in unique_weekly_students})
+        middle_keys = [k for k in level_keys if k[0] == "middle"]
+        high_keys = [k for k in level_keys if k[0] == "high"]
+        render_class_board("중등부", middle_keys, students_by_class, status_by_student, homeroom_map)
+        render_class_board("고등부", high_keys, students_by_class, status_by_student, homeroom_map)
+    else:
+        level_label = "중등부" if selected_week_class[0] == "middle" else "고등부"
+        render_class_board(
+            level_label,
+            [selected_week_class],
+            students_by_class,
+            status_by_student,
+            homeroom_map,
+        )
+
+    with st.expander("주간 원본(검증용)"):
+        st.dataframe(weekly_display, use_container_width=True)
+
+
 st.title("출석부 앱")
 st.caption("Streamlit + Supabase")
 
@@ -223,6 +344,20 @@ except Exception as e:
     st.error(f"초기 데이터 조회 실패: {e}")
     st.stop()
 
+class_options = sorted({(r["level"], r["grade"], r["class_no"]) for r in class_rows})
+if not class_options:
+    st.warning("반 정보가 없습니다. v_class_detail 데이터를 확인하세요.")
+    st.stop()
+
+render_weekly_section(
+    supabase=supabase,
+    class_options=class_options,
+    class_rows=class_rows,
+    class_summary_rows=class_summary_rows,
+    default_anchor=date.today(),
+)
+
+st.divider()
 st.subheader("전체 출석 데이터")
 if not all_rows:
     st.info("저장된 출석 데이터가 없습니다.")
@@ -260,11 +395,6 @@ else:
 
 st.divider()
 st.subheader("출석 입력")
-
-class_options = sorted({(r["level"], r["grade"], r["class_no"]) for r in class_rows})
-if not class_options:
-    st.warning("반 정보가 없습니다. v_class_detail 데이터를 확인하세요.")
-    st.stop()
 
 selected_date = st.date_input("출석 날짜", value=date.today())
 selected_class = st.selectbox(
@@ -332,115 +462,3 @@ else:
     summary_cols[2].metric("결석", absent_cnt)
 
     st.dataframe(filtered_rows, use_container_width=True)
-
-st.divider()
-st.subheader("주차별 출석 현황 (일요일 기준)")
-
-week_anchor = st.date_input("주차 기준일", value=selected_date, key="week_anchor")
-days_since_sunday = (week_anchor.weekday() + 1) % 7
-week_start = week_anchor - timedelta(days=days_since_sunday)
-week_end = week_start + timedelta(days=6)
-
-st.caption(f"기준 주차: {week_start} ~ {week_end} (일~토)")
-
-week_class_filter_options = [("전체", 0, 0)] + class_options
-selected_week_class = st.selectbox(
-    "주간 반 필터",
-    week_class_filter_options,
-    index=0,
-    format_func=lambda c: "전체" if c[0] == "전체" else f"{c[0]} {c[1]}학년 {c[2]}반",
-)
-
-try:
-    weekly_rows = fetch_roster_by_range(supabase, week_start, week_end)
-except Exception as e:
-    st.error(f"주간 조회 실패: {e}")
-    st.stop()
-
-weekly_filtered = [
-    r
-    for r in weekly_rows
-    if selected_week_class[0] == "전체"
-    or (r["level"], r["grade"], r["class_no"]) == selected_week_class
-]
-
-rows_by_student = defaultdict(list)
-for r in weekly_filtered:
-    rows_by_student[r["student_id"]].append(r)
-
-weekly_display = []
-weekly_status_counts = Counter()
-sunday_iso = week_start.isoformat()
-status_by_student = {}
-
-weekly_students = class_rows
-if selected_week_class[0] != "전체":
-    weekly_students = [
-        r
-        for r in class_rows
-        if (r["level"], r["grade"], r["class_no"]) == selected_week_class
-    ]
-
-seen = set()
-unique_weekly_students = []
-for s in weekly_students:
-    if s["student_id"] in seen:
-        continue
-    seen.add(s["student_id"])
-    unique_weekly_students.append(s)
-
-for student in sorted(unique_weekly_students, key=lambda x: x["student_name"]):
-    student_rows = rows_by_student.get(student["student_id"], [])
-    sunday_row = next((r for r in student_rows if r["attendance_date"] == sunday_iso), None)
-    latest_row = max(student_rows, key=lambda x: x["attendance_date"]) if student_rows else None
-    chosen = sunday_row or latest_row
-
-    status = chosen["status"] if chosen else "absent"
-    status_by_student[student["student_id"]] = status
-    weekly_status_counts[status] += 1
-
-    weekly_display.append(
-        {
-            "학생": student["student_name"],
-            "반": f"{student['level']} {student['grade']}학년 {student['class_no']}반",
-            "주간상태": status,
-            "기록일": chosen["attendance_date"] if chosen else "-",
-            "비고": chosen.get("note") if chosen else None,
-        }
-    )
-
-if not weekly_display:
-    st.info("해당 반의 학생 데이터가 없습니다.")
-else:
-    w_cols = st.columns(3)
-    w_cols[0].metric("출석", weekly_status_counts.get("present", 0))
-    w_cols[1].metric("지각", weekly_status_counts.get("late", 0))
-    w_cols[2].metric("결석", weekly_status_counts.get("absent", 0))
-
-    homeroom_map = {
-        (r["level"], r["grade"], r["class_no"]): r.get("homeroom_teacher")
-        for r in class_summary_rows
-    }
-    students_by_class = defaultdict(list)
-    for student in sorted(unique_weekly_students, key=lambda x: x["student_name"]):
-        key = (student["level"], student["grade"], student["class_no"])
-        students_by_class[key].append(student)
-
-    if selected_week_class[0] == "전체":
-        level_keys = sorted({(s["level"], s["grade"], s["class_no"]) for s in unique_weekly_students})
-        middle_keys = [k for k in level_keys if k[0] == "middle"]
-        high_keys = [k for k in level_keys if k[0] == "high"]
-        render_class_board("중등부", middle_keys, students_by_class, status_by_student, homeroom_map)
-        render_class_board("고등부", high_keys, students_by_class, status_by_student, homeroom_map)
-    else:
-        level_label = "중등부" if selected_week_class[0] == "middle" else "고등부"
-        render_class_board(
-            level_label,
-            [selected_week_class],
-            students_by_class,
-            status_by_student,
-            homeroom_map,
-        )
-
-    st.caption("주간 원본(검증용)")
-    st.dataframe(weekly_display, use_container_width=True)
