@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from html import escape
 from urllib.parse import urlencode, quote_plus
 
-import altair as alt
+import plotly.graph_objects as go
 import streamlit as st
 from supabase import Client, create_client
 
@@ -358,71 +358,44 @@ def resolve_app_base_url() -> str:
 def build_weekend_status_bar_chart(
     sat_present: int, sat_absent: int, sun_present: int, sun_absent: int
 ):
-    max_count = max(sat_present, sat_absent, sun_present, sun_absent, 1)
-    data = [
-        {
-            "day_type": "토요일",
-            "status": "present",
-            "count": sat_present,
-            "label_y": sat_present + max_count * 0.06,
-        },
-        {
-            "day_type": "토요일",
-            "status": "absent",
-            "count": sat_absent,
-            "label_y": sat_absent + max_count * 0.06,
-        },
-        {
-            "day_type": "일요일",
-            "status": "present",
-            "count": sun_present,
-            "label_y": sun_present + max_count * 0.06,
-        },
-        {
-            "day_type": "일요일",
-            "status": "absent",
-            "count": sun_absent,
-            "label_y": sun_absent + max_count * 0.06,
-        },
-    ]
-    bars = (
-        alt.Chart(alt.Data(values=data))
-        .mark_bar(size=34)
-        .encode(
-            x=alt.X("day_type:N", title=None),
-            y=alt.Y(
-                "count:Q",
-                title="인원(명)",
-                scale=alt.Scale(domain=[0, max_count * 1.25], nice=False),
-            ),
-            xOffset=alt.XOffset("status:N"),
-            color=alt.Color(
-                "status:N",
-                scale=alt.Scale(domain=["present", "absent"], range=["#0ea5e9", "#ef4444"]),
-                legend=alt.Legend(title="상태"),
-            ),
-            tooltip=[
-                alt.Tooltip("day_type:N", title="요일"),
-                alt.Tooltip("status:N", title="상태"),
-                alt.Tooltip("count:Q", title="인원"),
-            ],
+    days = ["토요일", "일요일"]
+    present_vals = [sat_present, sun_present]
+    absent_vals = [sat_absent, sun_absent]
+    max_count = max(present_vals + absent_vals + [1])
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            name="present",
+            x=days,
+            y=present_vals,
+            marker_color="#0ea5e9",
+            text=present_vals,
+            textposition="outside",
+            cliponaxis=False,
         )
     )
-    labels = (
-        alt.Chart(alt.Data(values=data))
-        .mark_text(color="white", size=12, fontWeight="bold", stroke="#111827", strokeWidth=2)
-        .encode(
-            x=alt.X("day_type:N"),
-            xOffset=alt.XOffset("status:N"),
-            y=alt.Y("label_y:Q"),
-            text=alt.Text("count:Q"),
+    fig.add_trace(
+        go.Bar(
+            name="absent",
+            x=days,
+            y=absent_vals,
+            marker_color="#ef4444",
+            text=absent_vals,
+            textposition="outside",
+            cliponaxis=False,
         )
     )
-    return (
-        alt.layer(bars, labels)
-        .properties(title="상태별 분포 (토/일 통합)", height=280)
-        .configure_view(strokeOpacity=0)
+    fig.update_layout(
+        title="상태별 분포 (토/일 통합)",
+        barmode="group",
+        yaxis=dict(title="인원(명)", range=[0, max_count * 1.35]),
+        xaxis=dict(title="요일"),
+        margin=dict(l=20, r=20, t=50, b=20),
+        legend=dict(title="상태"),
+        template="plotly_dark",
     )
+    return fig
 
 
 def render_class_board(
@@ -778,7 +751,7 @@ else:
             sun_present=weekend_counts.get("sun_present", 0),
             sun_absent=weekend_counts.get("sun_absent", 0),
         )
-        st.altair_chart(weekend_bar, use_container_width=True)
+        st.plotly_chart(weekend_bar, use_container_width=True, config={"displayModeBar": False})
     with chart_col2:
         st.caption("주차별 출석 인원 (토/일 구분)")
         week_agg = defaultdict(lambda: {"sat_present": 0, "sun_present": 0})
@@ -823,54 +796,46 @@ else:
         for row in weekly_rate_data:
             row["label_y"] = row["attendance_count"] + max_trend_count * 0.06
 
-        weekly_line = (
-            alt.Chart(alt.Data(values=weekly_rate_data))
-            .mark_line(strokeWidth=3)
-            .encode(
-                x=alt.X("week:N", title="주차", sort=alt.SortField(field="week_order", order="ascending")),
-                y=alt.Y(
-                    "attendance_count:Q",
-                    title="출석 인원(명)",
-                    scale=alt.Scale(domain=[0, max_trend_count * 1.25], nice=False),
-                ),
-                color=alt.Color(
-                    "day_type:N",
-                    scale=alt.Scale(domain=["토요일", "일요일"], range=["#22c55e", "#f97316"]),
-                    legend=alt.Legend(title="요일"),
-                ),
-                tooltip=["week:N", "day_type:N", "attendance_count:Q"],
+        week_rows = sorted(week_agg.items(), key=lambda x: x[0])
+        weeks = [week_label_from_sunday(date.fromisoformat(k)) for k, _ in week_rows]
+        sat_vals = [v["sat_present"] for _, v in week_rows]
+        sun_vals = [v["sun_present"] for _, v in week_rows]
+        y_max = max(sat_vals + sun_vals + [1]) * 1.35
+
+        trend_fig = go.Figure()
+        trend_fig.add_trace(
+            go.Scatter(
+                name="토요일",
+                x=weeks,
+                y=sat_vals,
+                mode="lines+markers+text",
+                text=sat_vals,
+                textposition="top center",
+                line=dict(color="#22c55e", width=3),
+                marker=dict(size=8),
             )
         )
-        weekly_points = (
-            alt.Chart(alt.Data(values=weekly_rate_data))
-            .mark_circle(size=90)
-            .encode(
-                x=alt.X("week:N", sort=alt.SortField(field="week_order", order="ascending")),
-                y=alt.Y("attendance_count:Q"),
-                color=alt.Color(
-                    "day_type:N",
-                    scale=alt.Scale(domain=["토요일", "일요일"], range=["#22c55e", "#f97316"]),
-                    legend=None,
-                ),
+        trend_fig.add_trace(
+            go.Scatter(
+                name="일요일",
+                x=weeks,
+                y=sun_vals,
+                mode="lines+markers+text",
+                text=sun_vals,
+                textposition="top center",
+                line=dict(color="#f97316", width=3),
+                marker=dict(size=8),
             )
         )
-        weekly_point_text = (
-            alt.Chart(alt.Data(values=weekly_rate_data))
-            .mark_text(
-                color="white",
-                size=11,
-                fontWeight="bold",
-                stroke="#111827",
-                strokeWidth=2,
-            )
-            .encode(
-                x=alt.X("week:N", sort=alt.SortField(field="week_order", order="ascending")),
-                y=alt.Y("label_y:Q"),
-                text=alt.Text("attendance_count:Q"),
-            )
+        trend_fig.update_layout(
+            yaxis=dict(title="출석 인원(명)", range=[0, y_max]),
+            xaxis=dict(title="주차"),
+            margin=dict(l=20, r=20, t=20, b=20),
+            legend=dict(title="요일"),
+            template="plotly_dark",
+            height=320,
         )
-        trend_chart = alt.layer(weekly_line, weekly_points, weekly_point_text).properties(height=320)
-        st.altair_chart(trend_chart, use_container_width=True)
+        st.plotly_chart(trend_fig, use_container_width=True, config={"displayModeBar": False})
 
 st.divider()
 st.subheader("조회 / QR 설정")
