@@ -83,7 +83,8 @@ def fetch_class_detail(client: Client):
         .order("student_name")
         .execute()
     )
-    return result.data or []
+    rows = result.data or []
+    return [r for r in rows if r.get("student_id") and r.get("student_name")]
 
 
 def fetch_class_summary(client: Client):
