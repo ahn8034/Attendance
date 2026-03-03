@@ -142,6 +142,12 @@ def fetch_class_teacher_ids(client: Client):
     return sorted({r.get("teacher_id") for r in rows if r.get("teacher_id")})
 
 
+def fetch_teacher_list(client: Client):
+    result = client.table("teacher").select("id, name").execute()
+    rows = result.data or []
+    return [r for r in rows if r.get("id") and r.get("name")]
+
+
 def fetch_teacher_attendance_by_range(client: Client, start_date: date, end_date: date):
     result = (
         client.table("teacher_attendance")
@@ -487,6 +493,8 @@ def render_class_board(
     status_by_student_day,
     homeroom_map,
     assistant_map,
+    homeroom_status_map=None,
+    assistant_status_map=None,
 ):
     if not class_keys:
         return
@@ -522,13 +530,41 @@ def render_class_board(
     html.append("<tr><td class='left'>담임</td>")
     for class_key in class_keys:
         teacher = homeroom_map.get(class_key) or "-"
-        html.append(f"<td class='name'>{escape(teacher)}</td><td class='mark empty'></td><td class='mark empty'></td>")
+        sat_status = (homeroom_status_map or {}).get(class_key, {}).get("sat")
+        sun_status = (homeroom_status_map or {}).get(class_key, {}).get("sun")
+        if sat_status in {"present", "absent"}:
+            sat_symbol = format_status_symbol(sat_status)
+            sat_class = "mark-present" if sat_status == "present" else "mark-absent"
+            sat_cell = f"<td class='mark {sat_class}'>{sat_symbol}</td>"
+        else:
+            sat_cell = "<td class='mark empty'></td>"
+        if sun_status in {"present", "absent"}:
+            sun_symbol = format_status_symbol(sun_status)
+            sun_class = "mark-present" if sun_status == "present" else "mark-absent"
+            sun_cell = f"<td class='mark {sun_class}'>{sun_symbol}</td>"
+        else:
+            sun_cell = "<td class='mark empty'></td>"
+        html.append(f"<td class='name'>{escape(teacher)}</td>{sat_cell}{sun_cell}")
     html.append("</tr>")
 
     html.append("<tr><td class='left'>부담임</td>")
     for class_key in class_keys:
         assistant = assistant_map.get(class_key) or "-"
-        html.append(f"<td class='name'>{escape(assistant)}</td><td class='mark empty'></td><td class='mark empty'></td>")
+        sat_status = (assistant_status_map or {}).get(class_key, {}).get("sat")
+        sun_status = (assistant_status_map or {}).get(class_key, {}).get("sun")
+        if sat_status in {"present", "absent"}:
+            sat_symbol = format_status_symbol(sat_status)
+            sat_class = "mark-present" if sat_status == "present" else "mark-absent"
+            sat_cell = f"<td class='mark {sat_class}'>{sat_symbol}</td>"
+        else:
+            sat_cell = "<td class='mark empty'></td>"
+        if sun_status in {"present", "absent"}:
+            sun_symbol = format_status_symbol(sun_status)
+            sun_class = "mark-present" if sun_status == "present" else "mark-absent"
+            sun_cell = f"<td class='mark {sun_class}'>{sun_symbol}</td>"
+        else:
+            sun_cell = "<td class='mark empty'></td>"
+        html.append(f"<td class='name'>{escape(assistant)}</td>{sat_cell}{sun_cell}")
     html.append("</tr>")
 
     for idx in range(max_students):
@@ -709,15 +745,76 @@ def render_weekly_section(
         key = (student["level"], student["grade"], student["class_no"])
         students_by_class[key].append(student)
 
+    homeroom_status_map = defaultdict(dict)
+    assistant_status_map = defaultdict(dict)
+    try:
+        teacher_rows = fetch_teacher_list(supabase)
+        teacher_name_to_id = {}
+        for tr in teacher_rows:
+            teacher_name_to_id[str(tr["name"]).strip()] = tr["id"]
+
+        teacher_att_rows = fetch_teacher_attendance_by_range(supabase, saturday_date, sunday_date)
+        present_by_day = defaultdict(set)
+        for row in teacher_att_rows:
+            adate = row.get("attendance_date")
+            tid = row.get("teacher_id")
+            if adate and tid:
+                present_by_day[adate].add(tid)
+
+        weekend_dates = {
+            "sat": saturday_date.isoformat(),
+            "sun": sunday_date.isoformat(),
+        }
+        for class_key in homeroom_map.keys():
+            homeroom_name = str(homeroom_map.get(class_key) or "").strip()
+            assistant_names_raw = normalize_assistant_teacher(assistant_map.get(class_key) or "")
+            assistant_names = [
+                name.strip() for name in assistant_names_raw.split(",") if name.strip() and name.strip() != "-"
+            ]
+
+            for day_code, adate in weekend_dates.items():
+                if homeroom_name and homeroom_name != "-":
+                    homeroom_tid = teacher_name_to_id.get(homeroom_name)
+                    if homeroom_tid:
+                        homeroom_status_map[class_key][day_code] = (
+                            "present" if homeroom_tid in present_by_day.get(adate, set()) else "absent"
+                        )
+
+                if assistant_names:
+                    matched_ids = [
+                        teacher_name_to_id[name]
+                        for name in assistant_names
+                        if teacher_name_to_id.get(name)
+                    ]
+                    if matched_ids:
+                        is_present = any(tid in present_by_day.get(adate, set()) for tid in matched_ids)
+                        assistant_status_map[class_key][day_code] = "present" if is_present else "absent"
+    except Exception:
+        pass
+
     if selected_week_class[0] == "전체":
         level_keys = sorted({(s["level"], s["grade"], s["class_no"]) for s in unique_weekly_students})
         middle_keys = [k for k in level_keys if k[0] == "middle"]
         high_keys = [k for k in level_keys if k[0] == "high"]
         render_class_board(
-            "중등부", middle_keys, students_by_class, status_by_student_day, homeroom_map, assistant_map
+            "중등부",
+            middle_keys,
+            students_by_class,
+            status_by_student_day,
+            homeroom_map,
+            assistant_map,
+            homeroom_status_map,
+            assistant_status_map,
         )
         render_class_board(
-            "고등부", high_keys, students_by_class, status_by_student_day, homeroom_map, assistant_map
+            "고등부",
+            high_keys,
+            students_by_class,
+            status_by_student_day,
+            homeroom_map,
+            assistant_map,
+            homeroom_status_map,
+            assistant_status_map,
         )
     else:
         level_label = "중등부" if selected_week_class[0] == "middle" else "고등부"
@@ -728,6 +825,8 @@ def render_weekly_section(
             status_by_student_day,
             homeroom_map,
             assistant_map,
+            homeroom_status_map,
+            assistant_status_map,
         )
 
     with st.expander("주간 원본(검증용)"):
