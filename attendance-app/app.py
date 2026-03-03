@@ -998,7 +998,6 @@ with tab_dashboard:
             )
             st.plotly_chart(high_fig, use_container_width=True, config={"displayModeBar": False})
 
-        sibling_total = Counter()
         sibling_by_level_day = {
             "중등부": {"sat": Counter(), "sun": Counter()},
             "고등부": {"sat": Counter(), "sun": Counter()},
@@ -1012,107 +1011,9 @@ with tab_dashboard:
                 sibling = meta.get("sibling", "")
                 level_name = meta.get("level", "")
                 if sibling in {"형제", "자매"}:
-                    sibling_total[sibling] += 1
                     if day_code in {"sat", "sun"}:
                         if level_name in sibling_by_level_day:
                             sibling_by_level_day[level_name][day_code][sibling] += 1
-
-        sibling_total_counts = {
-            "형제": sum(
-                1
-                for sid in unique_student_ids
-                if student_group_map.get(sid, {}).get("sibling") == "형제"
-            ),
-            "자매": sum(
-                1
-                for sid in unique_student_ids
-                if student_group_map.get(sid, {}).get("sibling") == "자매"
-            ),
-        }
-        sibling_level_total_counts = {
-            "중등부": {
-                "형제": sum(
-                    1
-                    for sid in unique_student_ids
-                    if student_group_map.get(sid, {}).get("level") == "중등부"
-                    and student_group_map.get(sid, {}).get("sibling") == "형제"
-                ),
-                "자매": sum(
-                    1
-                    for sid in unique_student_ids
-                    if student_group_map.get(sid, {}).get("level") == "중등부"
-                    and student_group_map.get(sid, {}).get("sibling") == "자매"
-                ),
-            },
-            "고등부": {
-                "형제": sum(
-                    1
-                    for sid in unique_student_ids
-                    if student_group_map.get(sid, {}).get("level") == "고등부"
-                    and student_group_map.get(sid, {}).get("sibling") == "형제"
-                ),
-                "자매": sum(
-                    1
-                    for sid in unique_student_ids
-                    if student_group_map.get(sid, {}).get("level") == "고등부"
-                    and student_group_map.get(sid, {}).get("sibling") == "자매"
-                ),
-            },
-        }
-        sib_col1, sib_col2 = st.columns(2)
-        with sib_col1:
-            sibling_summary_cols = st.columns(2)
-            with sibling_summary_cols[0]:
-                st.markdown("<div class='dept-title'>형제</div>", unsafe_allow_html=True)
-                brother_metrics = st.columns(3)
-                brother_metrics[0].metric("전체", sibling_total_counts["형제"])
-                brother_metrics[1].metric("토요일 출석", sibling_by_level_day["중등부"]["sat"].get("형제", 0) + sibling_by_level_day["고등부"]["sat"].get("형제", 0))
-                brother_metrics[2].metric("일요일 출석", sibling_by_level_day["중등부"]["sun"].get("형제", 0) + sibling_by_level_day["고등부"]["sun"].get("형제", 0))
-            with sibling_summary_cols[1]:
-                st.markdown("<div class='dept-title'>자매</div>", unsafe_allow_html=True)
-                sister_metrics = st.columns(3)
-                sister_metrics[0].metric("전체", sibling_total_counts["자매"])
-                sister_metrics[1].metric("토요일 출석", sibling_by_level_day["중등부"]["sat"].get("자매", 0) + sibling_by_level_day["고등부"]["sat"].get("자매", 0))
-                sister_metrics[2].metric("일요일 출석", sibling_by_level_day["중등부"]["sun"].get("자매", 0) + sibling_by_level_day["고등부"]["sun"].get("자매", 0))
-
-        with sib_col2:
-            level_sibling_cols = st.columns(2)
-            with level_sibling_cols[0]:
-                st.markdown("<div class='dept-title'>중등부</div>", unsafe_allow_html=True)
-                mid_sib_metrics = st.columns(3)
-                mid_sib_metrics[0].metric(
-                    "전체",
-                    sibling_level_total_counts["중등부"]["형제"]
-                    + sibling_level_total_counts["중등부"]["자매"],
-                )
-                mid_sib_metrics[1].metric(
-                    "형제 출석",
-                    sibling_by_level_day["중등부"]["sat"].get("형제", 0)
-                    + sibling_by_level_day["중등부"]["sun"].get("형제", 0),
-                )
-                mid_sib_metrics[2].metric(
-                    "자매 출석",
-                    sibling_by_level_day["중등부"]["sat"].get("자매", 0)
-                    + sibling_by_level_day["중등부"]["sun"].get("자매", 0),
-                )
-            with level_sibling_cols[1]:
-                st.markdown("<div class='dept-title'>고등부</div>", unsafe_allow_html=True)
-                high_sib_metrics = st.columns(3)
-                high_sib_metrics[0].metric(
-                    "전체",
-                    sibling_level_total_counts["고등부"]["형제"]
-                    + sibling_level_total_counts["고등부"]["자매"],
-                )
-                high_sib_metrics[1].metric(
-                    "형제 출석",
-                    sibling_by_level_day["고등부"]["sat"].get("형제", 0)
-                    + sibling_by_level_day["고등부"]["sun"].get("형제", 0),
-                )
-                high_sib_metrics[2].metric(
-                    "자매 출석",
-                    sibling_by_level_day["고등부"]["sat"].get("자매", 0)
-                    + sibling_by_level_day["고등부"]["sun"].get("자매", 0),
-                )
 
         trend_chart_rows = [st.columns(2), st.columns(2)]
         sibling_max = max(
