@@ -853,57 +853,10 @@ else:
         st.plotly_chart(trend_fig, use_container_width=True, config={"displayModeBar": False})
 
 st.divider()
-
-selected_date = st.date_input("출석 날짜", value=date.today())
-selected_date_label = day_label_from_date(selected_date)
-st.caption(f"선택한 날짜 요일: {selected_date_label}")
-selected_class = st.selectbox(
-    "반 선택",
-    class_options,
-    format_func=lambda c: f"{c[0]} {c[1]}학년 {c[2]}반",
-)
-
-class_students = [
-    r for r in class_rows if (r["level"], r["grade"], r["class_no"]) == selected_class
-]
-student_options = {f"{r['student_name']} ({r['student_id'][:8]})": r for r in class_students}
-
-st.markdown("#### 수동 출석 입력")
-if not student_options:
-    st.info("선택한 반에 학생 정보가 없습니다.")
-else:
-    manual_cols = st.columns([3, 1])
-    with manual_cols[0]:
-        selected_student_label = st.selectbox("학생", list(student_options.keys()), key="manual_student")
-    with manual_cols[1]:
-        submit_manual = st.button("수동 출석 등록", use_container_width=True)
-
-    if submit_manual:
-        if day_code_from_date(selected_date) not in {"sat", "sun"}:
-            st.warning("수동 출석 등록은 토요일/일요일만 가능합니다.")
-        else:
-            selected_student = student_options[selected_student_label]
-            school_class_id = find_school_class_id_by_student_id(supabase, selected_student["student_id"])
-            if not school_class_id:
-                st.error("student_class에서 반 정보를 찾지 못했습니다.")
-            else:
-                try:
-                    save_attendance(
-                        client=supabase,
-                        attendance_date=selected_date,
-                        student_id=selected_student["student_id"],
-                        school_class_id=school_class_id,
-                        status="present",
-                        note="manual check-in",
-                    )
-                    st.success(f"수동 등록 완료: {selected_student['student_name']}")
-                except Exception as e:
-                    st.error(f"수동 등록 실패: {e}")
-
 st.markdown("#### QR 출석 링크 생성")
 qr_cols = st.columns(3)
 with qr_cols[0]:
-    qr_date = st.date_input("QR 날짜", value=selected_date, key="qr_date_input")
+    qr_date = st.date_input("QR 날짜", value=date.today(), key="qr_date_input")
 with qr_cols[1]:
     st.empty()
 with qr_cols[2]:
