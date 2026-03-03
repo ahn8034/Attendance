@@ -1062,27 +1062,29 @@ with tab_dashboard:
             )
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
-        st.subheader("중등부 형제/자매 트렌드")
         with trend_chart_rows[0][0]:
+            st.subheader("중등부 형제 트렌드")
             render_single_sibling_trend(
                 "중등부",
                 sibling_by_level_day["중등부"]["sat"].get("형제", 0),
                 sibling_by_level_day["중등부"]["sun"].get("형제", 0),
             )
         with trend_chart_rows[0][1]:
+            st.subheader("중등부 자매 트렌드")
             render_single_sibling_trend(
                 "중등부",
                 sibling_by_level_day["중등부"]["sat"].get("자매", 0),
                 sibling_by_level_day["중등부"]["sun"].get("자매", 0),
             )
-        st.subheader("고등부 형제/자매 트렌드")
         with trend_chart_rows[1][0]:
+            st.subheader("고등부 형제 트렌드")
             render_single_sibling_trend(
                 "고등부",
                 sibling_by_level_day["고등부"]["sat"].get("형제", 0),
                 sibling_by_level_day["고등부"]["sun"].get("형제", 0),
             )
         with trend_chart_rows[1][1]:
+            st.subheader("고등부 자매 트렌드")
             render_single_sibling_trend(
                 "고등부",
                 sibling_by_level_day["고등부"]["sat"].get("자매", 0),
