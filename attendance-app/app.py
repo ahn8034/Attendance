@@ -898,13 +898,22 @@ with tab_dashboard:
         sun_middle_present = level_present_for(latest_sun, "중등부")
         sun_high_present = level_present_for(latest_sun, "고등부")
 
-        st.caption(
-            f"토요일 중등부: {sat_middle_present}/{level_totals['중등부']} 출석, "
-            f"고등부: {sat_high_present}/{level_totals['고등부']} 출석"
+        level_metric_cols = st.columns(4)
+        level_metric_cols[0].metric(
+            "토요일 중등부 출석",
+            f"{sat_middle_present}/{level_totals['중등부']}",
         )
-        st.caption(
-            f"일요일 중등부: {sun_middle_present}/{level_totals['중등부']} 출석, "
-            f"고등부: {sun_high_present}/{level_totals['고등부']} 출석"
+        level_metric_cols[1].metric(
+            "토요일 고등부 출석",
+            f"{sat_high_present}/{level_totals['고등부']}",
+        )
+        level_metric_cols[2].metric(
+            "일요일 중등부 출석",
+            f"{sun_middle_present}/{level_totals['중등부']}",
+        )
+        level_metric_cols[3].metric(
+            "일요일 고등부 출석",
+            f"{sun_high_present}/{level_totals['고등부']}",
         )
 
         level_weekend_present = {
