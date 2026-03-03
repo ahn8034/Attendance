@@ -180,7 +180,7 @@ def week_label_from_sunday(week_start: date) -> str:
     else:
         week_no = ((week_start - first_sunday).days // 7) + 1
     week_no = min(max(week_no, 1), 5)
-    return f"{week_no}주차"
+    return f"{week_start.year}-{week_start.month:02d} {week_no}주차"
 
 
 def normalize_assistant_teacher(raw_value) -> str:
@@ -545,10 +545,10 @@ else:
             {"status": "present", "count": status_counts.get("present", 0)},
             {"status": "absent", "count": status_counts.get("absent", 0)},
         ]
-        total_count = sum(item["count"] for item in status_chart_data) or 1
         status_base = (
             alt.Chart(alt.Data(values=status_chart_data))
-            .transform_calculate(percent=f"datum.count / {total_count} * 100")
+            .transform_joinaggregate(total="sum(count)")
+            .transform_calculate(percent="datum.total > 0 ? datum.count / datum.total * 100 : 0")
         )
         status_pie_chart = status_base.mark_arc(innerRadius=40).encode(
             theta=alt.Theta("count:Q", title="인원"),
@@ -599,17 +599,31 @@ else:
                 week_agg[week_key]["sun_present"] += present_cnt
 
         weekly_rate_data = []
-        for week_key, agg in sorted(week_agg.items(), key=lambda x: x[0]):
+        for idx, (week_key, agg) in enumerate(sorted(week_agg.items(), key=lambda x: x[0])):
             week_start_date = date.fromisoformat(week_key)
             week_label = week_label_from_sunday(week_start_date)
-            weekly_rate_data.append({"week": week_label, "day_type": "토요일", "attendance_count": agg["sat_present"]})
-            weekly_rate_data.append({"week": week_label, "day_type": "일요일", "attendance_count": agg["sun_present"]})
+            weekly_rate_data.append(
+                {
+                    "week": week_label,
+                    "week_order": idx,
+                    "day_type": "토요일",
+                    "attendance_count": agg["sat_present"],
+                }
+            )
+            weekly_rate_data.append(
+                {
+                    "week": week_label,
+                    "week_order": idx,
+                    "day_type": "일요일",
+                    "attendance_count": agg["sun_present"],
+                }
+            )
 
         weekly_count_chart = (
             alt.Chart(alt.Data(values=weekly_rate_data))
             .mark_bar()
             .encode(
-                x=alt.X("week:N", title="주차"),
+                x=alt.X("week:N", title="주차", sort=alt.SortField(field="week_order", order="ascending")),
                 y=alt.Y("attendance_count:Q", title="출석 인원(명)"),
                 xOffset=alt.XOffset("day_type:N"),
                 color=alt.Color(
