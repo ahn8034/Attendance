@@ -10,6 +10,34 @@ from supabase import Client, create_client
 
 
 st.set_page_config(page_title="출석부", page_icon="✅", layout="wide")
+st.markdown(
+    """
+<style>
+/* Mobile-friendly base spacing */
+@media (max-width: 768px) {
+  .block-container {
+    padding-top: 1rem;
+    padding-left: 0.8rem;
+    padding-right: 0.8rem;
+    padding-bottom: 1rem;
+  }
+  h1 {
+    font-size: 1.8rem !important;
+  }
+  h2, h3 {
+    font-size: 1.2rem !important;
+  }
+  p, label, [data-testid="stMetricLabel"] {
+    font-size: 0.9rem !important;
+  }
+  [data-testid="stMetricValue"] {
+    font-size: 1.8rem !important;
+  }
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
 
 
 @st.cache_resource
@@ -371,7 +399,8 @@ def render_class_board(
     max_students = max(len(students_by_class.get(c, [])) for c in class_keys)
 
     html = []
-    html.append("<style>.board{border-collapse:collapse;width:100%;font-size:12px;table-layout:auto}")
+    html.append("<style>.board-wrap{width:100%;overflow-x:auto;padding-bottom:6px}")
+    html.append(".board{border-collapse:collapse;width:max-content;min-width:100%;font-size:12px;table-layout:auto}")
     html.append(".board th,.board td{border:1px solid #444;padding:3px 4px;text-align:center;white-space:nowrap}")
     html.append(".board th{background:#1f2937;color:#fff}")
     html.append(".board .left{background:#111827;color:#fff;min-width:48px}")
@@ -380,9 +409,11 @@ def render_class_board(
     html.append(".board .mark-present{background:#0ea5e9;color:#001018}")
     html.append(".board .mark-absent{background:#ef4444;color:#ffffff}")
     html.append(".board .empty{background:#1f2937;color:#6b7280}")
+    html.append("@media (max-width: 768px){.board{font-size:11px}.board th,.board td{padding:2px 3px}.board .name{font-size:10px}}")
     html.append("</style>")
 
     html.append(f"<h4>{escape(level_name)}</h4>")
+    html.append("<div class='board-wrap'>")
     html.append("<table class='board'>")
     html.append("<tr><th class='left'>분반</th>")
     for level, grade, class_no in class_keys:
@@ -427,6 +458,7 @@ def render_class_board(
         html.append("</tr>")
 
     html.append("</table>")
+    html.append("</div>")
     st.markdown("".join(html), unsafe_allow_html=True)
 
 
@@ -834,6 +866,7 @@ else:
             st.image(
                 f"https://quickchart.io/qr?size=220&text={quote_plus(qr_url)}",
                 caption="학생이 스캔하면 이름 입력 후 출석 처리됩니다.",
+                use_column_width=True,
             )
         else:
             st.warning(
