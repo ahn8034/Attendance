@@ -1088,13 +1088,13 @@ with tab_dashboard:
                     + sibling_level_total_counts["중등부"]["자매"],
                 )
                 mid_sib_metrics[1].metric(
-                    "토요일 출석",
+                    "형제 출석",
                     sibling_by_level_day["중등부"]["sat"].get("형제", 0)
-                    + sibling_by_level_day["중등부"]["sat"].get("자매", 0),
+                    + sibling_by_level_day["중등부"]["sun"].get("형제", 0),
                 )
                 mid_sib_metrics[2].metric(
-                    "일요일 출석",
-                    sibling_by_level_day["중등부"]["sun"].get("형제", 0)
+                    "자매 출석",
+                    sibling_by_level_day["중등부"]["sat"].get("자매", 0)
                     + sibling_by_level_day["중등부"]["sun"].get("자매", 0),
                 )
             with level_sibling_cols[1]:
@@ -1106,71 +1106,109 @@ with tab_dashboard:
                     + sibling_level_total_counts["고등부"]["자매"],
                 )
                 high_sib_metrics[1].metric(
-                    "토요일 출석",
+                    "형제 출석",
                     sibling_by_level_day["고등부"]["sat"].get("형제", 0)
-                    + sibling_by_level_day["고등부"]["sat"].get("자매", 0),
+                    + sibling_by_level_day["고등부"]["sun"].get("형제", 0),
                 )
                 high_sib_metrics[2].metric(
-                    "일요일 출석",
-                    sibling_by_level_day["고등부"]["sun"].get("형제", 0)
+                    "자매 출석",
+                    sibling_by_level_day["고등부"]["sat"].get("자매", 0)
                     + sibling_by_level_day["고등부"]["sun"].get("자매", 0),
                 )
 
-        combined_sibling_fig = go.Figure()
-        x_combined = [
-            ["토요일", "토요일", "일요일", "일요일"],
-            ["형제", "자매", "형제", "자매"],
-        ]
-        y_mid = [
+        sibling_chart_cols = st.columns(2)
+        x_days = ["토요일", "일요일"]
+        brother_middle = [
             sibling_by_level_day["중등부"]["sat"].get("형제", 0),
-            sibling_by_level_day["중등부"]["sat"].get("자매", 0),
             sibling_by_level_day["중등부"]["sun"].get("형제", 0),
+        ]
+        brother_high = [
+            sibling_by_level_day["고등부"]["sat"].get("형제", 0),
+            sibling_by_level_day["고등부"]["sun"].get("형제", 0),
+        ]
+        sister_middle = [
+            sibling_by_level_day["중등부"]["sat"].get("자매", 0),
             sibling_by_level_day["중등부"]["sun"].get("자매", 0),
         ]
-        y_high = [
-            sibling_by_level_day["고등부"]["sat"].get("형제", 0),
+        sister_high = [
             sibling_by_level_day["고등부"]["sat"].get("자매", 0),
-            sibling_by_level_day["고등부"]["sun"].get("형제", 0),
             sibling_by_level_day["고등부"]["sun"].get("자매", 0),
         ]
-        combined_sibling_fig.add_trace(
-            go.Scatter(
-                name="중등부",
-                x=x_combined,
-                y=y_mid,
-                mode="lines+markers+text",
-                text=y_mid,
-                textposition="top center",
-                line=dict(color="#38bdf8", width=3),
-                marker=dict(size=8),
+        sibling_max = max(brother_middle + brother_high + sister_middle + sister_high + [1])
+
+        with sibling_chart_cols[0]:
+            brother_fig = go.Figure()
+            brother_fig.add_trace(
+                go.Scatter(
+                    name="중등부",
+                    x=x_days,
+                    y=brother_middle,
+                    mode="lines+markers+text",
+                    text=brother_middle,
+                    textposition="top center",
+                    line=dict(color="#38bdf8", width=3),
+                    marker=dict(size=8),
+                )
             )
-        )
-        combined_sibling_fig.add_trace(
-            go.Scatter(
-                name="고등부",
-                x=x_combined,
-                y=y_high,
-                mode="lines+markers+text",
-                text=y_high,
-                textposition="top center",
-                line=dict(color="#f97316", width=3),
-                marker=dict(size=8),
+            brother_fig.add_trace(
+                go.Scatter(
+                    name="고등부",
+                    x=x_days,
+                    y=brother_high,
+                    mode="lines+markers+text",
+                    text=brother_high,
+                    textposition="top center",
+                    line=dict(color="#f97316", width=3),
+                    marker=dict(size=8),
+                )
             )
-        )
-        combined_sibling_max = max(y_mid + y_high + [1])
-        combined_sibling_fig.update_layout(
-            yaxis=dict(title="출석 인원(명)", range=[0, combined_sibling_max * 1.35]),
-            xaxis=dict(title="요일 / 형제·자매"),
-            margin=dict(l=20, r=20, t=20, b=20),
-            legend=dict(title="부서"),
-            template="plotly_dark",
-            height=320,
-        )
-        st.plotly_chart(
-            combined_sibling_fig,
-            use_container_width=True,
-            config={"displayModeBar": False},
-        )
+            brother_fig.update_layout(
+                title="형제 트렌드",
+                yaxis=dict(title="출석 인원(명)", range=[0, sibling_max * 1.35]),
+                xaxis=dict(title="요일"),
+                margin=dict(l=20, r=20, t=40, b=20),
+                legend=dict(title="부서"),
+                template="plotly_dark",
+                height=320,
+            )
+            st.plotly_chart(brother_fig, use_container_width=True, config={"displayModeBar": False})
+
+        with sibling_chart_cols[1]:
+            sister_fig = go.Figure()
+            sister_fig.add_trace(
+                go.Scatter(
+                    name="중등부",
+                    x=x_days,
+                    y=sister_middle,
+                    mode="lines+markers+text",
+                    text=sister_middle,
+                    textposition="top center",
+                    line=dict(color="#38bdf8", width=3),
+                    marker=dict(size=8),
+                )
+            )
+            sister_fig.add_trace(
+                go.Scatter(
+                    name="고등부",
+                    x=x_days,
+                    y=sister_high,
+                    mode="lines+markers+text",
+                    text=sister_high,
+                    textposition="top center",
+                    line=dict(color="#f97316", width=3),
+                    marker=dict(size=8),
+                )
+            )
+            sister_fig.update_layout(
+                title="자매 트렌드",
+                yaxis=dict(title="출석 인원(명)", range=[0, sibling_max * 1.35]),
+                xaxis=dict(title="요일"),
+                margin=dict(l=20, r=20, t=40, b=20),
+                legend=dict(title="부서"),
+                template="plotly_dark",
+                height=320,
+            )
+            st.plotly_chart(sister_fig, use_container_width=True, config={"displayModeBar": False})
 
 with tab_admin:
     st.markdown("#### 수동 출석 입력")
