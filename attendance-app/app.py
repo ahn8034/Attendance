@@ -718,7 +718,7 @@ def render_weekly_section(
         st.dataframe(weekly_display, use_container_width=True)
 
 
-st.title("수원교회 중고등부 출석부")
+st.title("수원교회 중고등부 출석현황")
 st.caption("Streamlit + Supabase")
 
 top_actions = st.columns([1, 6])
