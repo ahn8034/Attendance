@@ -935,46 +935,49 @@ with tab_dashboard:
         level_fig = go.Figure()
         x_levels = ["중등부", "고등부"]
         level_fig.add_trace(
-            go.Bar(
+            go.Scatter(
                 name="토요일",
                 x=x_levels,
                 y=[
                     level_weekend_present["중등부"]["sat"],
                     level_weekend_present["고등부"]["sat"],
                 ],
+                mode="lines+markers+text",
                 text=[
                     level_weekend_present["중등부"]["sat"],
                     level_weekend_present["고등부"]["sat"],
                 ],
-                textposition="outside",
-                marker_color="#22c55e",
-                cliponaxis=False,
+                textposition="top center",
+                line=dict(color="#22c55e", width=3),
+                marker=dict(size=9),
             )
         )
         level_fig.add_trace(
-            go.Bar(
+            go.Scatter(
                 name="일요일",
                 x=x_levels,
                 y=[
                     level_weekend_present["중등부"]["sun"],
                     level_weekend_present["고등부"]["sun"],
                 ],
+                mode="lines+markers+text",
                 text=[
                     level_weekend_present["중등부"]["sun"],
                     level_weekend_present["고등부"]["sun"],
                 ],
-                textposition="outside",
-                marker_color="#f97316",
-                cliponaxis=False,
+                textposition="top center",
+                line=dict(color="#f97316", width=3),
+                marker=dict(size=9),
             )
         )
         max_level_val = max(
-            level_weekend_present["중등부"]["sat"] + level_weekend_present["중등부"]["sun"],
-            level_weekend_present["고등부"]["sat"] + level_weekend_present["고등부"]["sun"],
+            level_weekend_present["중등부"]["sat"],
+            level_weekend_present["중등부"]["sun"],
+            level_weekend_present["고등부"]["sat"],
+            level_weekend_present["고등부"]["sun"],
             1,
         )
         level_fig.update_layout(
-            barmode="group",
             yaxis=dict(title="출석 인원(명)", range=[0, max_level_val * 1.35]),
             xaxis=dict(title="부서"),
             margin=dict(l=20, r=20, t=20, b=20),
