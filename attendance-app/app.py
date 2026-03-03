@@ -196,6 +196,42 @@ def day_label_from_date(value: date) -> str:
     return "평일"
 
 
+def sibling_group(level: str, grade: int, class_no: int) -> str:
+    if level == "middle":
+        if grade == 1:
+            if 1 <= class_no <= 2:
+                return "형제"
+            if 3 <= class_no <= 4:
+                return "자매"
+        elif grade == 2:
+            if 1 <= class_no <= 3:
+                return "형제"
+            if 4 <= class_no <= 5:
+                return "자매"
+        elif grade == 3:
+            if 1 <= class_no <= 3:
+                return "형제"
+            if 4 <= class_no <= 5:
+                return "자매"
+    elif level == "high":
+        if grade == 1:
+            if 1 <= class_no <= 2:
+                return "형제"
+            if 3 <= class_no <= 5:
+                return "자매"
+        elif grade == 2:
+            if 1 <= class_no <= 2:
+                return "형제"
+            if 3 <= class_no <= 5:
+                return "자매"
+        elif grade == 3:
+            if 1 <= class_no <= 2:
+                return "형제"
+            if 3 <= class_no <= 4:
+                return "자매"
+    return ""
+
+
 def week_label_from_sunday(week_start: date) -> str:
     month_first = week_start.replace(day=1)
     days_to_sunday = (6 - month_first.weekday()) % 7
@@ -735,6 +771,14 @@ with tab_dashboard:
     else:
         unique_student_ids = {r["student_id"] for r in class_rows}
         unique_students = len(unique_student_ids)
+        student_group_map = {}
+        for r in class_rows:
+            sid = r.get("student_id")
+            if not sid:
+                continue
+            level_name = "중등부" if r.get("level") == "middle" else "고등부"
+            sibling = sibling_group(r.get("level"), int(r.get("grade", 0)), int(r.get("class_no", 0)))
+            student_group_map[sid] = {"level": level_name, "sibling": sibling}
         date_student_status = defaultdict(dict)
         for row in all_rows:
             sid = row.get("student_id")
@@ -894,7 +938,97 @@ with tab_dashboard:
             template="plotly_dark",
             height=300,
         )
-        st.plotly_chart(level_fig, use_container_width=True, config={"displayModeBar": False})
+            st.plotly_chart(level_fig, use_container_width=True, config={"displayModeBar": False})
+
+        sibling_total = Counter()
+        sibling_by_level = {
+            "중등부": Counter(),
+            "고등부": Counter(),
+        }
+        for _, student_map in date_student_status.items():
+            for sid, stt in student_map.items():
+                if stt != "present":
+                    continue
+                meta = student_group_map.get(sid, {})
+                sibling = meta.get("sibling", "")
+                level_name = meta.get("level", "")
+                if sibling in {"형제", "자매"}:
+                    sibling_total[sibling] += 1
+                    if level_name in sibling_by_level:
+                        sibling_by_level[level_name][sibling] += 1
+
+        sib_col1, sib_col2 = st.columns(2)
+        with sib_col1:
+            st.caption("전체 형제/자매 출석 통계")
+            total_fig = go.Figure()
+            x_total = ["형제", "자매"]
+            y_total = [sibling_total.get("형제", 0), sibling_total.get("자매", 0)]
+            total_fig.add_trace(
+                go.Bar(
+                    x=x_total,
+                    y=y_total,
+                    text=y_total,
+                    textposition="outside",
+                    marker_color=["#38bdf8", "#f97316"],
+                    cliponaxis=False,
+                )
+            )
+            total_max = max(y_total + [1])
+            total_fig.update_layout(
+                yaxis=dict(title="출석 인원(명)", range=[0, total_max * 1.35]),
+                xaxis=dict(title="구분"),
+                margin=dict(l=20, r=20, t=20, b=20),
+                template="plotly_dark",
+                height=300,
+                showlegend=False,
+            )
+            st.plotly_chart(total_fig, use_container_width=True, config={"displayModeBar": False})
+
+        with sib_col2:
+            st.caption("중등부/고등부별 형제/자매 출석 통계")
+            level_sib_fig = go.Figure()
+            x_levels = ["중등부", "고등부"]
+            y_brother = [
+                sibling_by_level["중등부"].get("형제", 0),
+                sibling_by_level["고등부"].get("형제", 0),
+            ]
+            y_sister = [
+                sibling_by_level["중등부"].get("자매", 0),
+                sibling_by_level["고등부"].get("자매", 0),
+            ]
+            level_sib_fig.add_trace(
+                go.Bar(
+                    name="형제",
+                    x=x_levels,
+                    y=y_brother,
+                    text=y_brother,
+                    textposition="outside",
+                    marker_color="#38bdf8",
+                    cliponaxis=False,
+                )
+            )
+            level_sib_fig.add_trace(
+                go.Bar(
+                    name="자매",
+                    x=x_levels,
+                    y=y_sister,
+                    text=y_sister,
+                    textposition="outside",
+                    marker_color="#f97316",
+                    cliponaxis=False,
+                )
+            )
+            level_sib_max = max(y_brother + y_sister + [1])
+            level_sib_fig.update_layout(
+                barmode="group",
+                yaxis=dict(title="출석 인원(명)", range=[0, level_sib_max * 1.35]),
+                xaxis=dict(title="부서"),
+                margin=dict(l=20, r=20, t=20, b=20),
+                legend=dict(title="구분"),
+                template="plotly_dark",
+                height=300,
+            )
+            st.plotly_chart(level_sib_fig, use_container_width=True, config={"displayModeBar": False})
 
 with tab_admin:
     st.markdown("#### 수동 출석 입력")
