@@ -35,6 +35,12 @@ st.markdown(
     font-size: 1.8rem !important;
   }
 }
+
+.dept-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  margin-bottom: 0.25rem;
+}
 </style>
 """,
     unsafe_allow_html=True,
@@ -900,13 +906,13 @@ with tab_dashboard:
 
         level_summary_cols = st.columns(2)
         with level_summary_cols[0]:
-            st.markdown("**중등부**")
+            st.markdown("<div class='dept-title'>중등부</div>", unsafe_allow_html=True)
             middle_metric_cols = st.columns(3)
             middle_metric_cols[0].metric("전체", level_totals["중등부"])
             middle_metric_cols[1].metric("토요일 출석", sat_middle_present)
             middle_metric_cols[2].metric("일요일 출석", sun_middle_present)
         with level_summary_cols[1]:
-            st.markdown("**고등부**")
+            st.markdown("<div class='dept-title'>고등부</div>", unsafe_allow_html=True)
             high_metric_cols = st.columns(3)
             high_metric_cols[0].metric("전체", level_totals["고등부"])
             high_metric_cols[1].metric("토요일 출석", sat_high_present)
