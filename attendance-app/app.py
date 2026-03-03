@@ -1045,45 +1045,22 @@ with tab_dashboard:
                 ),
             },
         }
-        latest_att_date = max(date_student_status.keys()) if date_student_status else None
-        latest_att_map = date_student_status.get(latest_att_date, {}) if latest_att_date else {}
-
-        sibling_present_latest = Counter()
-        sibling_level_present_latest = {
-            "중등부": Counter(),
-            "고등부": Counter(),
-        }
-        for sid, stt in latest_att_map.items():
-            if stt != "present":
-                continue
-            meta = student_group_map.get(sid, {})
-            sibling = meta.get("sibling", "")
-            level_name = meta.get("level", "")
-            if sibling in {"형제", "자매"}:
-                sibling_present_latest[sibling] += 1
-                if level_name in sibling_level_present_latest:
-                    sibling_level_present_latest[level_name][sibling] += 1
-
         sib_col1, sib_col2 = st.columns(2)
         with sib_col1:
             st.subheader("전체 형제/자매 출석 통계")
             sibling_summary_cols = st.columns(2)
             with sibling_summary_cols[0]:
                 st.markdown("<div class='dept-title'>형제</div>", unsafe_allow_html=True)
-                brother_metrics = st.columns(2)
+                brother_metrics = st.columns(3)
                 brother_metrics[0].metric("전체", sibling_total_counts["형제"])
-                brother_metrics[1].metric(
-                    "출석",
-                    sibling_present_latest.get("형제", 0),
-                )
+                brother_metrics[1].metric("토요일 출석", sibling_by_level_day["중등부"]["sat"].get("형제", 0) + sibling_by_level_day["고등부"]["sat"].get("형제", 0))
+                brother_metrics[2].metric("일요일 출석", sibling_by_level_day["중등부"]["sun"].get("형제", 0) + sibling_by_level_day["고등부"]["sun"].get("형제", 0))
             with sibling_summary_cols[1]:
                 st.markdown("<div class='dept-title'>자매</div>", unsafe_allow_html=True)
-                sister_metrics = st.columns(2)
+                sister_metrics = st.columns(3)
                 sister_metrics[0].metric("전체", sibling_total_counts["자매"])
-                sister_metrics[1].metric(
-                    "출석",
-                    sibling_present_latest.get("자매", 0),
-                )
+                sister_metrics[1].metric("토요일 출석", sibling_by_level_day["중등부"]["sat"].get("자매", 0) + sibling_by_level_day["고등부"]["sat"].get("자매", 0))
+                sister_metrics[2].metric("일요일 출석", sibling_by_level_day["중등부"]["sun"].get("자매", 0) + sibling_by_level_day["고등부"]["sun"].get("자매", 0))
 
         with sib_col2:
             st.subheader("중등부/고등부별 형제/자매 출석 통계")
@@ -1097,12 +1074,14 @@ with tab_dashboard:
                     + sibling_level_total_counts["중등부"]["자매"],
                 )
                 mid_sib_metrics[1].metric(
-                    "형제 출석",
-                    sibling_level_present_latest["중등부"].get("형제", 0),
+                    "토요일 출석",
+                    sibling_by_level_day["중등부"]["sat"].get("형제", 0)
+                    + sibling_by_level_day["중등부"]["sat"].get("자매", 0),
                 )
                 mid_sib_metrics[2].metric(
-                    "자매 출석",
-                    sibling_level_present_latest["중등부"].get("자매", 0),
+                    "일요일 출석",
+                    sibling_by_level_day["중등부"]["sun"].get("형제", 0)
+                    + sibling_by_level_day["중등부"]["sun"].get("자매", 0),
                 )
             with level_sibling_cols[1]:
                 st.markdown("<div class='dept-title'>고등부</div>", unsafe_allow_html=True)
@@ -1113,12 +1092,14 @@ with tab_dashboard:
                     + sibling_level_total_counts["고등부"]["자매"],
                 )
                 high_sib_metrics[1].metric(
-                    "형제 출석",
-                    sibling_level_present_latest["고등부"].get("형제", 0),
+                    "토요일 출석",
+                    sibling_by_level_day["고등부"]["sat"].get("형제", 0)
+                    + sibling_by_level_day["고등부"]["sat"].get("자매", 0),
                 )
                 high_sib_metrics[2].metric(
-                    "자매 출석",
-                    sibling_level_present_latest["고등부"].get("자매", 0),
+                    "일요일 출석",
+                    sibling_by_level_day["고등부"]["sun"].get("형제", 0)
+                    + sibling_by_level_day["고등부"]["sun"].get("자매", 0),
                 )
 
         combined_sibling_fig = go.Figure()
