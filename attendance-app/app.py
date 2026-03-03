@@ -90,7 +90,7 @@ def fetch_class_detail(client: Client):
 def fetch_class_summary(client: Client):
     result = (
         client.table("v_class_summary")
-        .select("level, grade, class_no, homeroom_teacher")
+        .select("level, grade, class_no, homeroom_teacher, assistant_teachers")
         .order("level")
         .order("grade")
         .order("class_no")
@@ -153,7 +153,14 @@ def normalize_status(status: str) -> str:
     return "present" if status == "present" else "absent"
 
 
-def render_class_board(level_name: str, class_keys, students_by_class, status_by_student, homeroom_map):
+def render_class_board(
+    level_name: str,
+    class_keys,
+    students_by_class,
+    status_by_student,
+    homeroom_map,
+    assistant_map,
+):
     if not class_keys:
         return
 
@@ -180,6 +187,12 @@ def render_class_board(level_name: str, class_keys, students_by_class, status_by
     for class_key in class_keys:
         teacher = homeroom_map.get(class_key) or "-"
         html.append(f"<td class='name'>{escape(teacher)}</td><td class='mark empty'></td>")
+    html.append("</tr>")
+
+    html.append("<tr><td class='left'>부담임</td>")
+    for class_key in class_keys:
+        assistant = assistant_map.get(class_key) or "-"
+        html.append(f"<td class='name'>{escape(assistant)}</td><td class='mark empty'></td>")
     html.append("</tr>")
 
     for idx in range(max_students):
@@ -326,12 +339,17 @@ def render_weekly_section(
         st.info("해당 반의 학생 데이터가 없습니다.")
         return
 
-    w_cols = st.columns(2)
-    w_cols[0].metric("출석", weekly_status_counts.get("present", 0))
-    w_cols[1].metric("결석", weekly_status_counts.get("absent", 0))
+    w_cols = st.columns(3)
+    w_cols[0].metric("학생 수(교사 제외)", len(unique_weekly_students))
+    w_cols[1].metric("출석", weekly_status_counts.get("present", 0))
+    w_cols[2].metric("결석", weekly_status_counts.get("absent", 0))
 
     homeroom_map = {
         (r["level"], r["grade"], r["class_no"]): r.get("homeroom_teacher")
+        for r in class_summary_rows
+    }
+    assistant_map = {
+        (r["level"], r["grade"], r["class_no"]): r.get("assistant_teachers")
         for r in class_summary_rows
     }
     students_by_class = defaultdict(list)
@@ -343,8 +361,12 @@ def render_weekly_section(
         level_keys = sorted({(s["level"], s["grade"], s["class_no"]) for s in unique_weekly_students})
         middle_keys = [k for k in level_keys if k[0] == "middle"]
         high_keys = [k for k in level_keys if k[0] == "high"]
-        render_class_board("중등부", middle_keys, students_by_class, status_by_student, homeroom_map)
-        render_class_board("고등부", high_keys, students_by_class, status_by_student, homeroom_map)
+        render_class_board(
+            "중등부", middle_keys, students_by_class, status_by_student, homeroom_map, assistant_map
+        )
+        render_class_board(
+            "고등부", high_keys, students_by_class, status_by_student, homeroom_map, assistant_map
+        )
     else:
         level_label = "중등부" if selected_week_class[0] == "middle" else "고등부"
         render_class_board(
@@ -353,6 +375,7 @@ def render_weekly_section(
             students_by_class,
             status_by_student,
             homeroom_map,
+            assistant_map,
         )
 
     with st.expander("주간 원본(검증용)"):
@@ -422,7 +445,7 @@ else:
 
     metric_cols = st.columns(4)
     metric_cols[0].metric("전체 기록", sum(date_counts.values()))
-    metric_cols[1].metric("학생 수", unique_students)
+    metric_cols[1].metric("학생 수(교사 제외)", unique_students)
     metric_cols[2].metric("출석", status_counts.get("present", 0))
     metric_cols[3].metric("결석", status_counts.get("absent", 0))
 
