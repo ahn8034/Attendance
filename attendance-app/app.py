@@ -1136,30 +1136,31 @@ with tab_dashboard:
             sibling_by_level_day["고등부"]["sun"].get("자매", 0),
         ]
         combined_sibling_fig.add_trace(
-            go.Bar(
+            go.Scatter(
                 name="중등부",
                 x=x_combined,
                 y=y_mid,
+                mode="lines+markers+text",
                 text=y_mid,
-                textposition="outside",
-                marker_color="#38bdf8",
-                cliponaxis=False,
+                textposition="top center",
+                line=dict(color="#38bdf8", width=3),
+                marker=dict(size=8),
             )
         )
         combined_sibling_fig.add_trace(
-            go.Bar(
+            go.Scatter(
                 name="고등부",
                 x=x_combined,
                 y=y_high,
+                mode="lines+markers+text",
                 text=y_high,
-                textposition="outside",
-                marker_color="#f97316",
-                cliponaxis=False,
+                textposition="top center",
+                line=dict(color="#f97316", width=3),
+                marker=dict(size=8),
             )
         )
         combined_sibling_max = max(y_mid + y_high + [1])
         combined_sibling_fig.update_layout(
-            barmode="group",
             yaxis=dict(title="출석 인원(명)", range=[0, combined_sibling_max * 1.35]),
             xaxis=dict(title="요일 / 형제·자매"),
             margin=dict(l=20, r=20, t=20, b=20),
