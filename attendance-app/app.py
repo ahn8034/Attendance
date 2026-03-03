@@ -116,6 +116,12 @@ def save_attendance(
 st.title("출석부 앱")
 st.caption("Streamlit + Supabase")
 
+top_actions = st.columns([1, 6])
+with top_actions[0]:
+    if st.button("리프레시"):
+        st.cache_data.clear()
+        st.rerun()
+
 try:
     supabase = get_supabase()
 except Exception as e:
