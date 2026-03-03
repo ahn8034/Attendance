@@ -953,7 +953,6 @@ with tab_dashboard:
                 )
             )
             middle_fig.update_layout(
-                title="중등부 라인 차트",
                 yaxis=dict(title="출석 인원(명)", range=[0, max_level_val * 1.35]),
                 xaxis=dict(title=""),
                 margin=dict(l=20, r=20, t=40, b=20),
@@ -990,7 +989,6 @@ with tab_dashboard:
                 )
             )
             high_fig.update_layout(
-                title="고등부 라인 차트",
                 yaxis=dict(title="출석 인원(명)", range=[0, max_level_val * 1.35]),
                 xaxis=dict(title=""),
                 margin=dict(l=20, r=20, t=40, b=20),
