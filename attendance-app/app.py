@@ -154,6 +154,23 @@ def normalize_status(status: str) -> str:
     return "present" if status == "present" else "absent"
 
 
+def day_code_from_date(value: date) -> str:
+    if value.weekday() == 5:
+        return "sat"
+    if value.weekday() == 6:
+        return "sun"
+    return "other"
+
+
+def day_label_from_date(value: date) -> str:
+    code = day_code_from_date(value)
+    if code == "sat":
+        return "토요일"
+    if code == "sun":
+        return "일요일"
+    return "평일"
+
+
 def normalize_assistant_teacher(raw_value) -> str:
     if not raw_value:
         return "-"
@@ -175,7 +192,7 @@ def render_class_board(
     level_name: str,
     class_keys,
     students_by_class,
-    status_by_student,
+    status_by_student_day,
     homeroom_map,
     assistant_map,
 ):
@@ -200,19 +217,23 @@ def render_class_board(
     html.append("<table class='board'>")
     html.append("<tr><th class='left'>분반</th>")
     for level, grade, class_no in class_keys:
-        html.append(f"<th colspan='2'>{grade}-{class_no}</th>")
+        html.append(f"<th colspan='3'>{grade}-{class_no}</th>")
+    html.append("</tr>")
+    html.append("<tr><td class='left'>요일</td>")
+    for _ in class_keys:
+        html.append("<td class='empty'>학생</td><td class='empty'>토</td><td class='empty'>일</td>")
     html.append("</tr>")
 
     html.append("<tr><td class='left'>담임</td>")
     for class_key in class_keys:
         teacher = homeroom_map.get(class_key) or "-"
-        html.append(f"<td class='name'>{escape(teacher)}</td><td class='mark empty'></td>")
+        html.append(f"<td class='name'>{escape(teacher)}</td><td class='mark empty'></td><td class='mark empty'></td>")
     html.append("</tr>")
 
     html.append("<tr><td class='left'>부담임</td>")
     for class_key in class_keys:
         assistant = assistant_map.get(class_key) or "-"
-        html.append(f"<td class='name'>{escape(assistant)}</td><td class='mark empty'></td>")
+        html.append(f"<td class='name'>{escape(assistant)}</td><td class='mark empty'></td><td class='mark empty'></td>")
     html.append("</tr>")
 
     for idx in range(max_students):
@@ -221,14 +242,19 @@ def render_class_board(
             students = students_by_class.get(class_key, [])
             if idx < len(students):
                 student = students[idx]
-                raw_status = status_by_student.get(student["student_id"], "absent")
-                symbol = format_status_symbol(raw_status)
-                mark_class = "mark-present" if raw_status == "present" else "mark-absent"
+                sat_status = status_by_student_day.get(student["student_id"], {}).get("sat", "absent")
+                sun_status = status_by_student_day.get(student["student_id"], {}).get("sun", "absent")
+                sat_symbol = format_status_symbol(sat_status)
+                sun_symbol = format_status_symbol(sun_status)
+                sat_class = "mark-present" if sat_status == "present" else "mark-absent"
+                sun_class = "mark-present" if sun_status == "present" else "mark-absent"
                 html.append(
-                    f"<td class='name'>{escape(student['student_name'])}</td><td class='mark {mark_class}'>{symbol}</td>"
+                    f"<td class='name'>{escape(student['student_name'])}</td>"
+                    f"<td class='mark {sat_class}'>{sat_symbol}</td>"
+                    f"<td class='mark {sun_class}'>{sun_symbol}</td>"
                 )
             else:
-                html.append("<td class='empty'></td><td class='empty'></td>")
+                html.append("<td class='empty'></td><td class='empty'></td><td class='empty'></td>")
         html.append("</tr>")
 
     html.append("</table>")
@@ -318,8 +344,7 @@ def render_weekly_section(
 
     weekly_display = []
     weekly_status_counts = Counter()
-    sunday_iso = week_start.isoformat()
-    status_by_student = {}
+    status_by_student_day = defaultdict(dict)
 
     weekly_students = class_rows
     if selected_week_class[0] != "전체":
@@ -339,21 +364,30 @@ def render_weekly_section(
 
     for student in sorted(unique_weekly_students, key=lambda x: (x.get("student_name") or "")):
         student_rows = rows_by_student.get(student["student_id"], [])
-        sunday_row = next((r for r in student_rows if r["attendance_date"] == sunday_iso), None)
-        latest_row = max(student_rows, key=lambda x: x["attendance_date"]) if student_rows else None
-        chosen = sunday_row or latest_row
+        sat_rows = [
+            r
+            for r in student_rows
+            if day_code_from_date(date.fromisoformat(r["attendance_date"])) == "sat"
+        ]
+        sun_rows = [
+            r
+            for r in student_rows
+            if day_code_from_date(date.fromisoformat(r["attendance_date"])) == "sun"
+        ]
 
-        status = normalize_status(chosen["status"]) if chosen else "absent"
-        status_by_student[student["student_id"]] = status
-        weekly_status_counts[status] += 1
+        sat_status = normalize_status(sat_rows[-1]["status"]) if sat_rows else "absent"
+        sun_status = normalize_status(sun_rows[-1]["status"]) if sun_rows else "absent"
+        status_by_student_day[student["student_id"]]["sat"] = sat_status
+        status_by_student_day[student["student_id"]]["sun"] = sun_status
+        weekly_status_counts[f"sat_{sat_status}"] += 1
+        weekly_status_counts[f"sun_{sun_status}"] += 1
 
         weekly_display.append(
             {
                 "학생": student["student_name"],
                 "반": f"{student['level']} {student['grade']}학년 {student['class_no']}반",
-                "주간상태": status,
-                "기록일": chosen["attendance_date"] if chosen else "-",
-                "비고": chosen.get("note") if chosen else None,
+                "토요일상태": sat_status,
+                "일요일상태": sun_status,
             }
         )
 
@@ -361,10 +395,12 @@ def render_weekly_section(
         st.info("해당 반의 학생 데이터가 없습니다.")
         return
 
-    w_cols = st.columns(3)
+    w_cols = st.columns(5)
     w_cols[0].metric("학생 수(교사 제외)", len(unique_weekly_students))
-    w_cols[1].metric("출석", weekly_status_counts.get("present", 0))
-    w_cols[2].metric("결석", weekly_status_counts.get("absent", 0))
+    w_cols[1].metric("토 출석", weekly_status_counts.get("sat_present", 0))
+    w_cols[2].metric("토 결석", weekly_status_counts.get("sat_absent", 0))
+    w_cols[3].metric("일 출석", weekly_status_counts.get("sun_present", 0))
+    w_cols[4].metric("일 결석", weekly_status_counts.get("sun_absent", 0))
 
     homeroom_map = {
         (r["level"], r["grade"], r["class_no"]): r.get("homeroom_teacher")
@@ -386,10 +422,10 @@ def render_weekly_section(
         middle_keys = [k for k in level_keys if k[0] == "middle"]
         high_keys = [k for k in level_keys if k[0] == "high"]
         render_class_board(
-            "중등부", middle_keys, students_by_class, status_by_student, homeroom_map, assistant_map
+            "중등부", middle_keys, students_by_class, status_by_student_day, homeroom_map, assistant_map
         )
         render_class_board(
-            "고등부", high_keys, students_by_class, status_by_student, homeroom_map, assistant_map
+            "고등부", high_keys, students_by_class, status_by_student_day, homeroom_map, assistant_map
         )
     else:
         level_label = "중등부" if selected_week_class[0] == "middle" else "고등부"
@@ -397,7 +433,7 @@ def render_weekly_section(
             level_label,
             [selected_week_class],
             students_by_class,
-            status_by_student,
+            status_by_student_day,
             homeroom_map,
             assistant_map,
         )
@@ -498,22 +534,28 @@ else:
         )
         st.altair_chart(status_pie_chart, use_container_width=True)
     with chart_col2:
-        st.caption("주차별 출석률")
-        week_agg = defaultdict(lambda: {"present": 0, "total": 0})
+        st.caption("주차별 출석률 (토/일 구분)")
+        week_agg = defaultdict(lambda: {"sat_present": 0, "sun_present": 0, "total": 0})
         for adate, student_map in date_student_status.items():
             day = date.fromisoformat(adate)
             days_since_sunday = (day.weekday() + 1) % 7
             week_start = day - timedelta(days=days_since_sunday)
             week_key = week_start.isoformat()
             present_cnt = sum(1 for s in student_map.values() if s == "present")
-            week_agg[week_key]["present"] += present_cnt
-            week_agg[week_key]["total"] += unique_students
+            day_code = day_code_from_date(day)
+            if day_code == "sat":
+                week_agg[week_key]["sat_present"] += present_cnt
+                week_agg[week_key]["total"] += unique_students
+            elif day_code == "sun":
+                week_agg[week_key]["sun_present"] += present_cnt
+                week_agg[week_key]["total"] += unique_students
 
         weekly_rate_data = []
         for week_key, agg in sorted(week_agg.items(), key=lambda x: x[0]):
-            total = agg["total"] or 1
-            rate = round((agg["present"] / total) * 100, 1)
-            weekly_rate_data.append({"week": week_key, "attendance_rate": rate})
+            sat_rate = round((agg["sat_present"] / unique_students) * 100, 1) if unique_students else 0
+            sun_rate = round((agg["sun_present"] / unique_students) * 100, 1) if unique_students else 0
+            weekly_rate_data.append({"week": week_key, "day_type": "토요일", "attendance_rate": sat_rate})
+            weekly_rate_data.append({"week": week_key, "day_type": "일요일", "attendance_rate": sun_rate})
 
         weekly_rate_chart = (
             alt.Chart(alt.Data(values=weekly_rate_data))
@@ -521,7 +563,12 @@ else:
             .encode(
                 x=alt.X("week:N", title="주차(일요일 시작)"),
                 y=alt.Y("attendance_rate:Q", title="출석률(%)", scale=alt.Scale(domain=[0, 100])),
-                tooltip=["week:N", "attendance_rate:Q"],
+                color=alt.Color(
+                    "day_type:N",
+                    scale=alt.Scale(domain=["토요일", "일요일"], range=["#22c55e", "#f97316"]),
+                    legend=alt.Legend(title="요일"),
+                ),
+                tooltip=["week:N", "day_type:N", "attendance_rate:Q"],
             )
         )
         st.altair_chart(weekly_rate_chart, use_container_width=True)
@@ -530,6 +577,8 @@ st.divider()
 st.subheader("출석 입력")
 
 selected_date = st.date_input("출석 날짜", value=date.today())
+selected_date_label = day_label_from_date(selected_date)
+st.caption(f"선택한 날짜 요일: {selected_date_label}")
 selected_class = st.selectbox(
     "반 선택",
     class_options,
@@ -548,24 +597,27 @@ with st.form("attendance_form", clear_on_submit=True):
     submitted = st.form_submit_button("저장")
 
 if submitted:
-    student = student_options[selected_label]
-    school_class_id = class_id_map.get(selected_class)
-
-    if not school_class_id:
-        st.error("선택한 반의 school_class_id를 찾지 못했습니다.")
+    if day_code_from_date(selected_date) not in {"sat", "sun"}:
+        st.error("출석 입력은 토요일/일요일만 가능합니다. 날짜를 주말로 선택하세요.")
     else:
-        try:
-            save_attendance(
-                client=supabase,
-                attendance_date=selected_date,
-                student_id=student["student_id"],
-                school_class_id=school_class_id,
-                status=status,
-                note=note,
-            )
-            st.success(f"저장 완료: {student['student_name']} ({status})")
-        except Exception as e:
-            st.error(f"저장 실패: {e}")
+        student = student_options[selected_label]
+        school_class_id = class_id_map.get(selected_class)
+
+        if not school_class_id:
+            st.error("선택한 반의 school_class_id를 찾지 못했습니다.")
+        else:
+            try:
+                save_attendance(
+                    client=supabase,
+                    attendance_date=selected_date,
+                    student_id=student["student_id"],
+                    school_class_id=school_class_id,
+                    status=status,
+                    note=note,
+                )
+                st.success(f"저장 완료: {student['student_name']} ({status})")
+            except Exception as e:
+                st.error(f"저장 실패: {e}")
 
 st.divider()
 st.subheader(f"{selected_date} 출석 현황")
