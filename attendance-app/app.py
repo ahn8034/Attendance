@@ -935,8 +935,8 @@ with tab_dashboard:
         level_fig.add_trace(
             go.Bar(
                 name="토요일",
-                x=x_levels,
-                y=[
+                y=x_levels,
+                x=[
                     level_weekend_present["중등부"]["sat"],
                     level_weekend_present["고등부"]["sat"],
                 ],
@@ -946,13 +946,14 @@ with tab_dashboard:
                 ],
                 textposition="inside",
                 marker_color="#22c55e",
+                orientation="h",
             )
         )
         level_fig.add_trace(
             go.Bar(
                 name="일요일",
-                x=x_levels,
-                y=[
+                y=x_levels,
+                x=[
                     level_weekend_present["중등부"]["sun"],
                     level_weekend_present["고등부"]["sun"],
                 ],
@@ -962,6 +963,7 @@ with tab_dashboard:
                 ],
                 textposition="inside",
                 marker_color="#f97316",
+                orientation="h",
             )
         )
         max_level_val = max(
@@ -971,8 +973,8 @@ with tab_dashboard:
         )
         level_fig.update_layout(
             barmode="stack",
-            yaxis=dict(title="출석 인원(명)", range=[0, max_level_val * 1.35]),
-            xaxis=dict(title="부서"),
+            xaxis=dict(title="출석 인원(명)", range=[0, max_level_val * 1.35]),
+            yaxis=dict(title="부서"),
             margin=dict(l=20, r=20, t=20, b=20),
             legend=dict(title="요일"),
             template="plotly_dark",
