@@ -501,9 +501,6 @@ else:
         st.caption("날짜별 기록 수")
         st.line_chart({"count": dict(sorted(date_counts.items(), key=lambda x: x[0]))})
 
-    st.caption("원본 데이터")
-    st.dataframe(all_rows, use_container_width=True)
-
 st.divider()
 st.subheader("출석 입력")
 
