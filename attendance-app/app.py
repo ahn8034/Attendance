@@ -1003,7 +1003,7 @@ with tab_dashboard:
 
         sib_col1, sib_col2 = st.columns(2)
         with sib_col1:
-            st.caption("전체 형제/자매 출석 통계")
+            st.subheader("전체 형제/자매 출석 통계")
             total_fig = go.Figure()
             x_total = ["형제", "자매"]
             y_total = [sibling_total.get("형제", 0), sibling_total.get("자매", 0)]
