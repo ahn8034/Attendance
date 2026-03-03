@@ -481,7 +481,11 @@ except Exception as e:
     st.error(f"초기 데이터 조회 실패: {e}")
     st.stop()
 
-class_options = sorted({(r["level"], r["grade"], r["class_no"]) for r in class_rows})
+level_order = {"middle": 0, "high": 1}
+class_options = sorted(
+    {(r["level"], r["grade"], r["class_no"]) for r in class_rows},
+    key=lambda c: (level_order.get(c[0], 99), c[1], c[2]),
+)
 if not class_options:
     st.warning("반 정보가 없습니다. v_class_detail 데이터를 확인하세요.")
     st.stop()
