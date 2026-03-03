@@ -498,8 +498,33 @@ else:
         )
         st.altair_chart(status_chart, use_container_width=True)
     with chart_col2:
-        st.caption("날짜별 기록 수")
-        st.line_chart({"count": dict(sorted(date_counts.items(), key=lambda x: x[0]))})
+        st.caption("주차별 출석률")
+        week_agg = defaultdict(lambda: {"present": 0, "total": 0})
+        for adate, student_map in date_student_status.items():
+            day = date.fromisoformat(adate)
+            days_since_sunday = (day.weekday() + 1) % 7
+            week_start = day - timedelta(days=days_since_sunday)
+            week_key = week_start.isoformat()
+            present_cnt = sum(1 for s in student_map.values() if s == "present")
+            week_agg[week_key]["present"] += present_cnt
+            week_agg[week_key]["total"] += unique_students
+
+        weekly_rate_data = []
+        for week_key, agg in sorted(week_agg.items(), key=lambda x: x[0]):
+            total = agg["total"] or 1
+            rate = round((agg["present"] / total) * 100, 1)
+            weekly_rate_data.append({"week": week_key, "attendance_rate": rate})
+
+        weekly_rate_chart = (
+            alt.Chart(alt.Data(values=weekly_rate_data))
+            .mark_line(point=True)
+            .encode(
+                x=alt.X("week:N", title="주차(일요일 시작)"),
+                y=alt.Y("attendance_rate:Q", title="출석률(%)", scale=alt.Scale(domain=[0, 100])),
+                tooltip=["week:N", "attendance_rate:Q"],
+            )
+        )
+        st.altair_chart(weekly_rate_chart, use_container_width=True)
 
 st.divider()
 st.subheader("출석 입력")
