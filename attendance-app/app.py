@@ -129,15 +129,6 @@ def fetch_class_summary(client: Client):
     return result.data or []
 
 
-def fetch_school_class_map(client: Client):
-    rows = (
-        client.table("school_class")
-        .select("id, level, grade, class_no")
-        .execute()
-    ).data or []
-    return {(r["level"], r["grade"], r["class_no"]): r["id"] for r in rows}
-
-
 def save_attendance(
     client: Client,
     attendance_date: date,
@@ -242,37 +233,33 @@ def get_query_value(name: str) -> str:
     return str(value)
 
 
-def find_student_and_class_by_name(
-    client: Client, student_name: str, school_class_id_hint: str = ""
-):
-    students = (
+def fetch_students_by_name(client: Client, student_name: str):
+    if not student_name.strip():
+        return []
+    rows = (
         client.table("student")
-        .select("id,name")
-        .eq("name", student_name)
+        .select("id,name,source_key")
+        .eq("name", student_name.strip())
+        .order("source_key")
         .execute()
     ).data or []
-    if not students:
-        return ("", "")
-
-    matches = []
-    for s in students:
-        links = (
-            client.table("student_class")
-            .select("student_id,school_class_id")
-            .eq("student_id", s["id"])
-            .execute()
-        ).data or []
-        for link in links:
-            if school_class_id_hint and link["school_class_id"] != school_class_id_hint:
-                continue
-            matches.append((s["id"], link["school_class_id"]))
-
-    if len(matches) == 1:
-        return matches[0]
-    return ("", "")
+    return rows
 
 
-def handle_qr_checkin(supabase: Client, class_options, class_id_map):
+def find_school_class_id_by_student_id(client: Client, student_id: str) -> str:
+    links = (
+        client.table("student_class")
+        .select("school_class_id")
+        .eq("student_id", student_id)
+        .limit(1)
+        .execute()
+    ).data or []
+    if not links:
+        return ""
+    return links[0].get("school_class_id", "")
+
+
+def handle_qr_checkin(supabase: Client):
     qr_date = get_query_value("qr_date").strip()
     qr_status = "present"
     qr_source = get_query_value("source").strip()
@@ -295,30 +282,32 @@ def handle_qr_checkin(supabase: Client, class_options, class_id_map):
 
     st.title("QR 출석 체크인")
     st.caption(f"{attendance_date} / {day_label_from_date(attendance_date)}")
-    selected_qr_class = st.selectbox(
-        "반 선택",
-        class_options,
-        format_func=lambda c: f"{c[0]} {c[1]}학년 {c[2]}반",
-        key="qr_checkin_class",
-    )
     student_name_input = st.text_input("이름을 입력하세요", placeholder="예: 강한")
+    candidates = fetch_students_by_name(supabase, student_name_input)
+    if student_name_input.strip() and not candidates:
+        st.warning("이름과 일치하는 학생을 찾지 못했습니다.")
+    selected_candidate = None
+    if candidates:
+        labels = [
+            f"{c['name']} ({c.get('source_key') or 'source_key 없음'})"
+            for c in candidates
+        ]
+        selected_label = st.selectbox("학생 선택 (source_key 매핑)", labels, key="qr_student_pick")
+        selected_candidate = candidates[labels.index(selected_label)]
     submit = st.button("출석하기")
 
     if submit:
         if not student_name_input.strip():
             st.warning("이름을 입력하세요.")
             return True
+        if not selected_candidate:
+            st.warning("학생을 선택하세요.")
+            return True
         try:
-            selected_school_class_id = class_id_map.get(selected_qr_class, "")
-            if not selected_school_class_id:
-                st.error("선택한 반의 정보를 찾지 못했습니다.")
-                return True
-
-            student_id, school_class_id = find_student_and_class_by_name(
-                supabase, student_name_input.strip(), selected_school_class_id
-            )
-            if not student_id or not school_class_id:
-                st.error("이름과 일치하는 학생/반 정보를 찾지 못했습니다. (동명이인 포함)")
+            student_id = selected_candidate["id"]
+            school_class_id = find_school_class_id_by_student_id(supabase, student_id)
+            if not school_class_id:
+                st.error("student_class에서 반 정보를 찾지 못했습니다.")
                 return True
 
             save_attendance(
@@ -327,11 +316,11 @@ def handle_qr_checkin(supabase: Client, class_options, class_id_map):
                 student_id=student_id,
                 school_class_id=school_class_id,
                 status=qr_status,
-                note="QR check-in (name)",
+                note=f"QR check-in (source_key={selected_candidate.get('source_key')})",
             )
             st.success(
-                f"출석 완료: {selected_qr_class[0]} {selected_qr_class[1]}-{selected_qr_class[2]} / "
-                f"{student_name_input.strip()}"
+                f"출석 완료: {selected_candidate['name']} "
+                f"({selected_candidate.get('source_key') or 'source_key 없음'})"
             )
         except Exception as e:
             st.error(f"QR 출석 처리 실패: {e}")
@@ -690,7 +679,6 @@ try:
     all_rows = fetch_all_roster(supabase)
     class_rows = fetch_class_detail(supabase)
     class_summary_rows = fetch_class_summary(supabase)
-    class_id_map = fetch_school_class_map(supabase)
 except Exception as e:
     st.error(f"초기 데이터 조회 실패: {e}")
     st.stop()
@@ -704,7 +692,7 @@ if not class_options:
     st.warning("반 정보가 없습니다. v_class_detail 데이터를 확인하세요.")
     st.stop()
 
-if handle_qr_checkin(supabase, class_options, class_id_map):
+if handle_qr_checkin(supabase):
     st.stop()
 
 render_weekly_section(
@@ -882,7 +870,7 @@ else:
     if app_base_url:
         st.image(
             f"https://quickchart.io/qr?size=220&text={quote_plus(qr_url)}",
-            caption="학생이 스캔한 뒤 반 선택 + 이름 입력으로 출석 처리됩니다.",
+            caption="학생이 스캔한 뒤 이름 입력 + source_key 선택으로 출석 처리됩니다.",
             use_column_width=True,
         )
     else:
