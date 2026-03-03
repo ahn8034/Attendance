@@ -614,10 +614,10 @@ def render_weekly_section(
 
     w_cols = st.columns(5)
     w_cols[0].metric("학생 수(교사 제외)", len(unique_weekly_students))
-    w_cols[1].metric("토 출석", weekly_status_counts.get("sat_present", 0))
-    w_cols[2].metric("토 결석", weekly_status_counts.get("sat_absent", 0))
-    w_cols[3].metric("일 출석", weekly_status_counts.get("sun_present", 0))
-    w_cols[4].metric("일 결석", weekly_status_counts.get("sun_absent", 0))
+    w_cols[1].metric("토요일 출석", weekly_status_counts.get("sat_present", 0))
+    w_cols[2].metric("토요일 결석", weekly_status_counts.get("sat_absent", 0))
+    w_cols[3].metric("일요일 출석", weekly_status_counts.get("sun_present", 0))
+    w_cols[4].metric("일요일 결석", weekly_status_counts.get("sun_absent", 0))
 
     homeroom_map = {
         (r["level"], r["grade"], r["class_no"]): r.get("homeroom_teacher")
@@ -735,13 +735,6 @@ else:
         elif day_code == "sun":
             weekend_counts["sun_present"] += present_cnt
             weekend_counts["sun_absent"] += absent_cnt
-
-    metric_cols = st.columns(5)
-    metric_cols[0].metric("학생 수(교사 제외)", unique_students)
-    metric_cols[1].metric("토요일 출석", weekend_counts.get("sat_present", 0))
-    metric_cols[2].metric("토요일 결석", weekend_counts.get("sat_absent", 0))
-    metric_cols[3].metric("일요일 출석", weekend_counts.get("sun_present", 0))
-    metric_cols[4].metric("일요일 결석", weekend_counts.get("sun_absent", 0))
 
     chart_col1, chart_col2 = st.columns(2)
     with chart_col1:
