@@ -118,11 +118,15 @@ def save_attendance(
     status: str,
     note: str,
 ) -> None:
+    # 결석은 DB에 저장하지 않고, 미기록을 결석으로 간주한다.
+    if normalize_status(status) != "present":
+        return
+
     payload = {
         "attendance_date": attendance_date.isoformat(),
         "student_id": student_id,
         "school_class_id": school_class_id,
-        "status": status,
+        "status": "present",
         "note": note.strip() if note else None,
     }
 
@@ -242,7 +246,7 @@ def find_student_and_class_by_name(
 
 def handle_qr_checkin(supabase: Client):
     qr_date = get_query_value("qr_date").strip()
-    qr_status = normalize_status(get_query_value("qr_status").strip() or "present")
+    qr_status = "present"
     qr_school_class_id = get_query_value("qr_school_class_id").strip()
     qr_source = get_query_value("source").strip()
 
@@ -300,7 +304,7 @@ def build_qr_checkin_url(base_url: str, school_class_id: str, attendance_date: d
             "source": "qr",
             "qr_school_class_id": school_class_id,
             "qr_date": attendance_date.isoformat(),
-            "qr_status": normalize_status(status),
+            "qr_status": "present",
         }
     )
     if base_url:
@@ -798,7 +802,6 @@ student_options = {f"{r['student_name']} ({r['student_id'][:8]})": r for r in cl
 
 with st.form("attendance_form", clear_on_submit=True):
     selected_label = st.selectbox("학생", list(student_options.keys()))
-    status = st.selectbox("상태", ["present", "absent"], index=0)
     note = st.text_input("비고", placeholder="선택")
     submitted = st.form_submit_button("저장")
 
@@ -818,10 +821,10 @@ if submitted:
                     attendance_date=selected_date,
                     student_id=student["student_id"],
                     school_class_id=school_class_id,
-                    status=status,
+                    status="present",
                     note=note,
                 )
-                st.success(f"저장 완료: {student['student_name']} ({status})")
+                st.success(f"저장 완료: {student['student_name']} (present)")
             except Exception as e:
                 st.error(f"저장 실패: {e}")
 
@@ -837,7 +840,7 @@ with qr_cols[1]:
         key="qr_class_for_link",
     )
 with qr_cols[2]:
-    qr_status = st.selectbox("QR 상태", ["present", "absent"], index=0, key="qr_status")
+    st.caption("QR 상태: present 고정")
 
 app_base_url = resolve_app_base_url()
 
@@ -852,7 +855,7 @@ else:
             base_url=app_base_url,
             school_class_id=qr_class_id,
             attendance_date=qr_date,
-            status=qr_status,
+            status="present",
         )
         st.code(qr_url)
         if app_base_url:
