@@ -1,8 +1,9 @@
 import os
 from collections import Counter, defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from html import escape
 from urllib.parse import urlencode, quote_plus
+from zoneinfo import ZoneInfo
 
 import plotly.graph_objects as go
 import streamlit as st
@@ -233,6 +234,19 @@ def get_query_value(name: str) -> str:
     return str(value)
 
 
+def get_app_timezone() -> ZoneInfo:
+    tz_name = st.secrets.get("APP_TIMEZONE") or os.getenv("APP_TIMEZONE", "Asia/Seoul")
+    try:
+        return ZoneInfo(str(tz_name))
+    except Exception:
+        return ZoneInfo("Asia/Seoul")
+
+
+def current_qr_slot(tz: ZoneInfo) -> str:
+    # Hourly rotating slot: YYYYMMDDHH (local app timezone)
+    return datetime.now(tz).strftime("%Y%m%d%H")
+
+
 def fetch_students_by_name(client: Client, student_name: str):
     if not student_name.strip():
         return []
@@ -262,12 +276,19 @@ def find_school_class_id_by_student_id(client: Client, student_id: str) -> str:
 def handle_qr_checkin(supabase: Client):
     qr_date = get_query_value("qr_date").strip()
     qr_status = "present"
+    qr_slot = get_query_value("qr_slot").strip()
     qr_source = get_query_value("source").strip()
 
     if qr_source != "qr":
         return False
-    if not qr_date:
+    if not qr_date or not qr_slot:
         st.error("QR 링크 파라미터가 누락되었습니다.")
+        return True
+
+    tz = get_app_timezone()
+    current_slot = current_qr_slot(tz)
+    if qr_slot != current_slot:
+        st.error("만료된 QR 코드입니다. 새 QR 코드로 다시 시도하세요.")
         return True
 
     try:
@@ -328,12 +349,13 @@ def handle_qr_checkin(supabase: Client):
     return True
 
 
-def build_qr_checkin_url(base_url: str, attendance_date: date, status: str) -> str:
+def build_qr_checkin_url(base_url: str, attendance_date: date, status: str, qr_slot: str) -> str:
     params = urlencode(
         {
             "source": "qr",
             "qr_date": attendance_date.isoformat(),
             "qr_status": "present",
+            "qr_slot": qr_slot,
         }
     )
     if base_url:
@@ -857,6 +879,10 @@ with qr_cols[2]:
     st.caption("QR 상태: present 고정")
 
 app_base_url = resolve_app_base_url()
+app_tz = get_app_timezone()
+active_qr_slot = current_qr_slot(app_tz)
+slot_start = datetime.now(app_tz).replace(minute=0, second=0, microsecond=0)
+slot_end = slot_start + timedelta(hours=1)
 
 if day_code_from_date(qr_date) not in {"sat", "sun"}:
     st.info("QR 날짜는 토요일/일요일만 선택하세요.")
@@ -865,7 +891,9 @@ else:
         base_url=app_base_url,
         attendance_date=qr_date,
         status="present",
+        qr_slot=active_qr_slot,
     )
+    st.caption(f"현재 QR 유효시간: {slot_start.strftime('%H:%M')} ~ {slot_end.strftime('%H:%M')} ({app_tz})")
     st.code(qr_url)
     if app_base_url:
         st.image(
