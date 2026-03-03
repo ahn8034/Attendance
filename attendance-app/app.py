@@ -853,6 +853,60 @@ else:
         st.plotly_chart(trend_fig, use_container_width=True, config={"displayModeBar": False})
 
 st.divider()
+st.markdown("#### 수동 출석 입력")
+manual_date = st.date_input("수동 출석 날짜", value=date.today(), key="manual_date_input")
+manual_day_label = day_label_from_date(manual_date)
+st.caption(f"선택한 날짜 요일: {manual_day_label}")
+
+manual_class = st.selectbox(
+    "수동 출석 반 선택",
+    class_options,
+    format_func=lambda c: f"{c[0]} {c[1]}학년 {c[2]}반",
+    key="manual_class_select",
+)
+
+manual_students = [
+    r for r in class_rows if (r["level"], r["grade"], r["class_no"]) == manual_class
+]
+manual_student_options = {
+    f"{r['student_name']} ({r['student_id'][:8]})": r for r in manual_students
+}
+
+if not manual_student_options:
+    st.info("선택한 반에 학생 정보가 없습니다.")
+else:
+    manual_cols = st.columns([3, 1])
+    with manual_cols[0]:
+        selected_manual_student = st.selectbox(
+            "학생",
+            list(manual_student_options.keys()),
+            key="manual_student_pick",
+        )
+    with manual_cols[1]:
+        submit_manual = st.button("수동 출석 등록", use_container_width=True, key="manual_submit")
+
+    if submit_manual:
+        if day_code_from_date(manual_date) not in {"sat", "sun"}:
+            st.warning("수동 출석 등록은 토요일/일요일만 가능합니다.")
+        else:
+            student = manual_student_options[selected_manual_student]
+            school_class_id = find_school_class_id_by_student_id(supabase, student["student_id"])
+            if not school_class_id:
+                st.error("student_class에서 반 정보를 찾지 못했습니다.")
+            else:
+                try:
+                    save_attendance(
+                        client=supabase,
+                        attendance_date=manual_date,
+                        student_id=student["student_id"],
+                        school_class_id=school_class_id,
+                        status="present",
+                        note="manual check-in",
+                    )
+                    st.success(f"수동 등록 완료: {student['student_name']}")
+                except Exception as e:
+                    st.error(f"수동 등록 실패: {e}")
+
 st.markdown("#### QR 출석 링크 생성")
 qr_cols = st.columns(3)
 with qr_cols[0]:
