@@ -785,9 +785,9 @@ else:
                 }
             )
 
-        weekly_count_chart = (
+        weekly_line = (
             alt.Chart(alt.Data(values=weekly_rate_data))
-            .mark_line(point=True, strokeWidth=3)
+            .mark_line(strokeWidth=3)
             .encode(
                 x=alt.X("week:N", title="주차", sort=alt.SortField(field="week_order", order="ascending")),
                 y=alt.Y("attendance_count:Q", title="출석 인원(명)"),
@@ -799,9 +799,9 @@ else:
                 tooltip=["week:N", "day_type:N", "attendance_count:Q"],
             )
         )
-        weekly_count_text = (
+        weekly_points = (
             alt.Chart(alt.Data(values=weekly_rate_data))
-            .mark_text(dy=-10, color="white", size=11)
+            .mark_circle(size=90)
             .encode(
                 x=alt.X("week:N", sort=alt.SortField(field="week_order", order="ascending")),
                 y=alt.Y("attendance_count:Q"),
@@ -810,10 +810,25 @@ else:
                     scale=alt.Scale(domain=["토요일", "일요일"], range=["#22c55e", "#f97316"]),
                     legend=None,
                 ),
+            )
+        )
+        weekly_count_text = (
+            alt.Chart(alt.Data(values=weekly_rate_data))
+            .mark_text(
+                dy=-12,
+                color="white",
+                size=12,
+                fontWeight="bold",
+                stroke="#111827",
+                strokeWidth=2,
+            )
+            .encode(
+                x=alt.X("week:N", sort=alt.SortField(field="week_order", order="ascending")),
+                y=alt.Y("attendance_count:Q"),
                 text=alt.Text("attendance_count:Q"),
             )
         )
-        st.altair_chart(alt.layer(weekly_count_chart, weekly_count_text), use_container_width=True)
+        st.altair_chart(alt.layer(weekly_line, weekly_points, weekly_count_text), use_container_width=True)
 
 st.divider()
 st.subheader("조회 / QR 설정")
