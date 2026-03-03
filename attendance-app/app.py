@@ -898,23 +898,19 @@ with tab_dashboard:
         sun_middle_present = level_present_for(latest_sun, "중등부")
         sun_high_present = level_present_for(latest_sun, "고등부")
 
-        level_metric_cols = st.columns(4)
-        level_metric_cols[0].metric(
-            "중등부 토요일 출석",
-            f"{sat_middle_present}/{level_totals['중등부']}",
-        )
-        level_metric_cols[1].metric(
-            "중등부 일요일 출석",
-            f"{sun_middle_present}/{level_totals['중등부']}",
-        )
-        level_metric_cols[2].metric(
-            "고등부 토요일 출석",
-            f"{sat_high_present}/{level_totals['고등부']}",
-        )
-        level_metric_cols[3].metric(
-            "고등부 일요일 출석",
-            f"{sun_high_present}/{level_totals['고등부']}",
-        )
+        level_summary_cols = st.columns(2)
+        with level_summary_cols[0]:
+            st.markdown("**중등부**")
+            middle_metric_cols = st.columns(3)
+            middle_metric_cols[0].metric("전체", level_totals["중등부"])
+            middle_metric_cols[1].metric("토요일 출석", sat_middle_present)
+            middle_metric_cols[2].metric("일요일 출석", sun_middle_present)
+        with level_summary_cols[1]:
+            st.markdown("**고등부**")
+            high_metric_cols = st.columns(3)
+            high_metric_cols[0].metric("전체", level_totals["고등부"])
+            high_metric_cols[1].metric("토요일 출석", sat_high_present)
+            high_metric_cols[2].metric("일요일 출석", sun_high_present)
 
         level_weekend_present = {
             "중등부": {"sat": 0, "sun": 0},
