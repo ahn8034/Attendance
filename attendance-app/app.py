@@ -900,19 +900,19 @@ with tab_dashboard:
 
         level_metric_cols = st.columns(4)
         level_metric_cols[0].metric(
-            "토요일 중등부 출석",
+            "중등부 토요일 출석",
             f"{sat_middle_present}/{level_totals['중등부']}",
         )
         level_metric_cols[1].metric(
-            "토요일 고등부 출석",
-            f"{sat_high_present}/{level_totals['고등부']}",
-        )
-        level_metric_cols[2].metric(
-            "일요일 중등부 출석",
+            "중등부 일요일 출석",
             f"{sun_middle_present}/{level_totals['중등부']}",
         )
+        level_metric_cols[2].metric(
+            "고등부 토요일 출석",
+            f"{sat_high_present}/{level_totals['고등부']}",
+        )
         level_metric_cols[3].metric(
-            "일요일 고등부 출석",
+            "고등부 일요일 출석",
             f"{sun_high_present}/{level_totals['고등부']}",
         )
 
