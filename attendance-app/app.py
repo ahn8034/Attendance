@@ -765,7 +765,6 @@ else:
                 week_agg[week_key]["sun_present"] += present_cnt
 
         weekly_rate_data = []
-        week_note_data = []
         for idx, (week_key, agg) in enumerate(sorted(week_agg.items(), key=lambda x: x[0])):
             week_start_date = date.fromisoformat(week_key)
             week_label = week_label_from_sunday(week_start_date)
@@ -785,13 +784,6 @@ else:
                     "week_order": idx,
                     "day_type": "일요일",
                     "attendance_count": sun_count,
-                }
-            )
-            week_note_data.append(
-                {
-                    "week": week_label,
-                    "week_order": idx,
-                    "label": f"토 {sat_count} / 일 {sun_count}",
                 }
             )
 
@@ -826,21 +818,23 @@ else:
                 ),
             )
         )
-        weekly_note_text = (
-            alt.Chart(alt.Data(values=week_note_data))
+        weekly_point_text = (
+            alt.Chart(alt.Data(values=weekly_rate_data))
             .mark_text(
-                dy=-6,
-                color="#cbd5e1",
-                size=10,
+                dy=-10,
+                color="white",
+                size=11,
                 fontWeight="bold",
+                stroke="#111827",
+                strokeWidth=2,
             )
             .encode(
                 x=alt.X("week:N", sort=alt.SortField(field="week_order", order="ascending")),
-                y=alt.YDatum(0),
-                text=alt.Text("label:N"),
+                y=alt.Y("attendance_count:Q"),
+                text=alt.Text("attendance_count:Q"),
             )
         )
-        trend_chart = alt.layer(weekly_line, weekly_points, weekly_note_text).properties(height=320)
+        trend_chart = alt.layer(weekly_line, weekly_points, weekly_point_text).properties(height=320)
         st.altair_chart(trend_chart, use_container_width=True)
 
 st.divider()
