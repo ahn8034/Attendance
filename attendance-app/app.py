@@ -358,18 +358,43 @@ def resolve_app_base_url() -> str:
 def build_weekend_status_bar_chart(
     sat_present: int, sat_absent: int, sun_present: int, sun_absent: int
 ):
+    max_count = max(sat_present, sat_absent, sun_present, sun_absent, 1)
     data = [
-        {"day_type": "토요일", "status": "present", "count": sat_present},
-        {"day_type": "토요일", "status": "absent", "count": sat_absent},
-        {"day_type": "일요일", "status": "present", "count": sun_present},
-        {"day_type": "일요일", "status": "absent", "count": sun_absent},
+        {
+            "day_type": "토요일",
+            "status": "present",
+            "count": sat_present,
+            "label_y": sat_present + max_count * 0.06,
+        },
+        {
+            "day_type": "토요일",
+            "status": "absent",
+            "count": sat_absent,
+            "label_y": sat_absent + max_count * 0.06,
+        },
+        {
+            "day_type": "일요일",
+            "status": "present",
+            "count": sun_present,
+            "label_y": sun_present + max_count * 0.06,
+        },
+        {
+            "day_type": "일요일",
+            "status": "absent",
+            "count": sun_absent,
+            "label_y": sun_absent + max_count * 0.06,
+        },
     ]
     bars = (
         alt.Chart(alt.Data(values=data))
         .mark_bar(size=34)
         .encode(
             x=alt.X("day_type:N", title=None),
-            y=alt.Y("count:Q", title="인원(명)", scale=alt.Scale(domainMin=0, nice=True)),
+            y=alt.Y(
+                "count:Q",
+                title="인원(명)",
+                scale=alt.Scale(domain=[0, max_count * 1.25], nice=False),
+            ),
             xOffset=alt.XOffset("status:N"),
             color=alt.Color(
                 "status:N",
@@ -385,11 +410,11 @@ def build_weekend_status_bar_chart(
     )
     labels = (
         alt.Chart(alt.Data(values=data))
-        .mark_text(dy=-8, color="white", size=12, fontWeight="bold", stroke="#111827", strokeWidth=2)
+        .mark_text(color="white", size=12, fontWeight="bold", stroke="#111827", strokeWidth=2)
         .encode(
             x=alt.X("day_type:N"),
             xOffset=alt.XOffset("status:N"),
-            y=alt.Y("count:Q"),
+            y=alt.Y("label_y:Q"),
             text=alt.Text("count:Q"),
         )
     )
@@ -771,11 +796,13 @@ else:
                 week_agg[week_key]["sun_present"] += present_cnt
 
         weekly_rate_data = []
+        max_trend_count = 1
         for idx, (week_key, agg) in enumerate(sorted(week_agg.items(), key=lambda x: x[0])):
             week_start_date = date.fromisoformat(week_key)
             week_label = week_label_from_sunday(week_start_date)
             sat_count = agg["sat_present"]
             sun_count = agg["sun_present"]
+            max_trend_count = max(max_trend_count, sat_count, sun_count)
             weekly_rate_data.append(
                 {
                     "week": week_label,
@@ -793,6 +820,9 @@ else:
                 }
             )
 
+        for row in weekly_rate_data:
+            row["label_y"] = row["attendance_count"] + max_trend_count * 0.06
+
         weekly_line = (
             alt.Chart(alt.Data(values=weekly_rate_data))
             .mark_line(strokeWidth=3)
@@ -801,7 +831,7 @@ else:
                 y=alt.Y(
                     "attendance_count:Q",
                     title="출석 인원(명)",
-                    scale=alt.Scale(domainMin=0, nice=True, padding=24),
+                    scale=alt.Scale(domain=[0, max_trend_count * 1.25], nice=False),
                 ),
                 color=alt.Color(
                     "day_type:N",
@@ -827,7 +857,6 @@ else:
         weekly_point_text = (
             alt.Chart(alt.Data(values=weekly_rate_data))
             .mark_text(
-                dy=-10,
                 color="white",
                 size=11,
                 fontWeight="bold",
@@ -836,7 +865,7 @@ else:
             )
             .encode(
                 x=alt.X("week:N", sort=alt.SortField(field="week_order", order="ascending")),
-                y=alt.Y("attendance_count:Q"),
+                y=alt.Y("label_y:Q"),
                 text=alt.Text("attendance_count:Q"),
             )
         )
