@@ -840,30 +840,3 @@ else:
                 "앱 URL을 자동으로 찾지 못했습니다. Streamlit Secrets에 "
                 "`APP_BASE_URL = \"https://<app>.streamlit.app\"`를 추가하세요."
             )
-
-st.divider()
-st.subheader(f"{selected_date} 출석 현황")
-
-try:
-    daily_rows = fetch_roster_by_date(supabase, selected_date)
-except Exception as e:
-    st.error(f"조회 실패: {e}")
-    st.stop()
-
-filtered_rows = [
-    r
-    for r in daily_rows
-    if (r["level"], r["grade"], r["class_no"]) == selected_class
-]
-
-if not filtered_rows:
-    st.info("해당 날짜/반의 출석 데이터가 없습니다.")
-else:
-    summary_cols = st.columns(2)
-    present_cnt = sum(1 for r in filtered_rows if normalize_status(r["status"]) == "present")
-    absent_cnt = len(class_students) - present_cnt
-
-    summary_cols[0].metric("출석", present_cnt)
-    summary_cols[1].metric("결석", max(absent_cnt, 0))
-
-    st.dataframe(filtered_rows, use_container_width=True)
