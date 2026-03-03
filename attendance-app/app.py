@@ -210,7 +210,9 @@ def get_query_value(name: str) -> str:
     return str(value)
 
 
-def find_student_id_by_name_in_class(client: Client, student_name: str, school_class_id: str) -> str:
+def find_student_and_class_by_name(
+    client: Client, student_name: str, school_class_id_hint: str = ""
+):
     students = (
         client.table("student")
         .select("id,name")
@@ -218,24 +220,24 @@ def find_student_id_by_name_in_class(client: Client, student_name: str, school_c
         .execute()
     ).data or []
     if not students:
-        return ""
+        return ("", "")
 
-    matched_ids = []
+    matches = []
     for s in students:
-        link = (
+        links = (
             client.table("student_class")
-            .select("student_id")
+            .select("student_id,school_class_id")
             .eq("student_id", s["id"])
-            .eq("school_class_id", school_class_id)
-            .limit(1)
             .execute()
         ).data or []
-        if link:
-            matched_ids.append(s["id"])
+        for link in links:
+            if school_class_id_hint and link["school_class_id"] != school_class_id_hint:
+                continue
+            matches.append((s["id"], link["school_class_id"]))
 
-    if len(matched_ids) == 1:
-        return matched_ids[0]
-    return ""
+    if len(matches) == 1:
+        return matches[0]
+    return ("", "")
 
 
 def handle_qr_checkin(supabase: Client):
@@ -270,18 +272,18 @@ def handle_qr_checkin(supabase: Client):
             st.warning("이름을 입력하세요.")
             return True
         try:
-            student_id = find_student_id_by_name_in_class(
+            student_id, school_class_id = find_student_and_class_by_name(
                 supabase, student_name_input.strip(), qr_school_class_id
             )
-            if not student_id:
-                st.error("해당 반에서 이름과 일치하는 학생을 찾지 못했습니다.")
+            if not student_id or not school_class_id:
+                st.error("이름과 일치하는 학생/반 정보를 찾지 못했습니다. (동명이인 포함)")
                 return True
 
             save_attendance(
                 client=supabase,
                 attendance_date=attendance_date,
                 student_id=student_id,
-                school_class_id=qr_school_class_id,
+                school_class_id=school_class_id,
                 status=qr_status,
                 note="QR check-in (name)",
             )
