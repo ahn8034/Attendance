@@ -985,13 +985,9 @@ with tab_dashboard:
         st.plotly_chart(level_fig, use_container_width=True, config={"displayModeBar": False})
 
         sibling_total = Counter()
-        sibling_by_level = {
-            "중등부": Counter(),
-            "고등부": Counter(),
-        }
-        sibling_by_day = {
-            "sat": Counter(),
-            "sun": Counter(),
+        sibling_by_level_day = {
+            "중등부": {"sat": Counter(), "sun": Counter()},
+            "고등부": {"sat": Counter(), "sun": Counter()},
         }
         for adate, student_map in date_student_status.items():
             day_code = day_code_from_date(date.fromisoformat(adate))
@@ -1003,10 +999,9 @@ with tab_dashboard:
                 level_name = meta.get("level", "")
                 if sibling in {"형제", "자매"}:
                     sibling_total[sibling] += 1
-                    if level_name in sibling_by_level:
-                        sibling_by_level[level_name][sibling] += 1
                     if day_code in {"sat", "sun"}:
-                        sibling_by_day[day_code][sibling] += 1
+                        if level_name in sibling_by_level_day:
+                            sibling_by_level_day[level_name][day_code][sibling] += 1
 
         sibling_total_counts = {
             "형제": sum(
@@ -1126,33 +1121,30 @@ with tab_dashboard:
                     sibling_level_present_latest["고등부"].get("자매", 0),
                 )
 
-        y_total_brother = [
-            sibling_by_day["sat"].get("형제", 0),
-            sibling_by_day["sun"].get("형제", 0),
-        ]
-        y_total_sister = [
-            sibling_by_day["sat"].get("자매", 0),
-            sibling_by_day["sun"].get("자매", 0),
-        ]
-        y_level_brother = [
-            sibling_by_level["중등부"].get("형제", 0),
-            sibling_by_level["고등부"].get("형제", 0),
-        ]
-        y_level_sister = [
-            sibling_by_level["중등부"].get("자매", 0),
-            sibling_by_level["고등부"].get("자매", 0),
-        ]
-
         combined_sibling_fig = go.Figure()
-        x_combined = ["토요일", "일요일", "중등부", "고등부"]
-        y_combined_brother = y_total_brother + y_level_brother
-        y_combined_sister = y_total_sister + y_level_sister
+        x_combined = ["형제", "자매"]
+        y_mid_sat = [
+            sibling_by_level_day["중등부"]["sat"].get("형제", 0),
+            sibling_by_level_day["중등부"]["sat"].get("자매", 0),
+        ]
+        y_mid_sun = [
+            sibling_by_level_day["중등부"]["sun"].get("형제", 0),
+            sibling_by_level_day["중등부"]["sun"].get("자매", 0),
+        ]
+        y_high_sat = [
+            sibling_by_level_day["고등부"]["sat"].get("형제", 0),
+            sibling_by_level_day["고등부"]["sat"].get("자매", 0),
+        ]
+        y_high_sun = [
+            sibling_by_level_day["고등부"]["sun"].get("형제", 0),
+            sibling_by_level_day["고등부"]["sun"].get("자매", 0),
+        ]
         combined_sibling_fig.add_trace(
             go.Bar(
-                name="형제",
+                name="중등부-토요일",
                 x=x_combined,
-                y=y_combined_brother,
-                text=y_combined_brother,
+                y=y_mid_sat,
+                text=y_mid_sat,
                 textposition="outside",
                 marker_color="#38bdf8",
                 cliponaxis=False,
@@ -1160,22 +1152,44 @@ with tab_dashboard:
         )
         combined_sibling_fig.add_trace(
             go.Bar(
-                name="자매",
+                name="중등부-일요일",
                 x=x_combined,
-                y=y_combined_sister,
-                text=y_combined_sister,
+                y=y_mid_sun,
+                text=y_mid_sun,
+                textposition="outside",
+                marker_color="#0ea5e9",
+                cliponaxis=False,
+            )
+        )
+        combined_sibling_fig.add_trace(
+            go.Bar(
+                name="고등부-토요일",
+                x=x_combined,
+                y=y_high_sat,
+                text=y_high_sat,
                 textposition="outside",
                 marker_color="#f97316",
                 cliponaxis=False,
             )
         )
-        combined_sibling_max = max(y_combined_brother + y_combined_sister + [1])
+        combined_sibling_fig.add_trace(
+            go.Bar(
+                name="고등부-일요일",
+                x=x_combined,
+                y=y_high_sun,
+                text=y_high_sun,
+                textposition="outside",
+                marker_color="#fb923c",
+                cliponaxis=False,
+            )
+        )
+        combined_sibling_max = max(y_mid_sat + y_mid_sun + y_high_sat + y_high_sun + [1])
         combined_sibling_fig.update_layout(
             barmode="group",
             yaxis=dict(title="출석 인원(명)", range=[0, combined_sibling_max * 1.35]),
-            xaxis=dict(title="구분"),
+            xaxis=dict(title="형제/자매"),
             margin=dict(l=20, r=20, t=20, b=20),
-            legend=dict(title="구분"),
+            legend=dict(title="부서/요일"),
             template="plotly_dark",
             height=320,
         )
