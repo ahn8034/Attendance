@@ -480,23 +480,23 @@ else:
             {"status": "present", "count": status_counts.get("present", 0)},
             {"status": "absent", "count": status_counts.get("absent", 0)},
         ]
-        status_chart = (
+        status_pie_chart = (
             alt.Chart(alt.Data(values=status_chart_data))
-            .mark_bar()
+            .mark_arc(innerRadius=40)
             .encode(
-                x=alt.X("status:N", title="상태"),
-                y=alt.Y("count:Q", title="인원"),
+                theta=alt.Theta("count:Q", title="인원"),
                 color=alt.Color(
                     "status:N",
                     scale=alt.Scale(
                         domain=["present", "absent"],
                         range=["#0ea5e9", "#ef4444"],
                     ),
-                    legend=None,
+                    legend=alt.Legend(title="상태"),
                 ),
+                tooltip=["status:N", "count:Q"],
             )
         )
-        st.altair_chart(status_chart, use_container_width=True)
+        st.altair_chart(status_pie_chart, use_container_width=True)
     with chart_col2:
         st.caption("주차별 출석률")
         week_agg = defaultdict(lambda: {"present": 0, "total": 0})
