@@ -1,6 +1,6 @@
 import os
 from collections import Counter, defaultdict
-from datetime import date
+from datetime import date, timedelta
 
 import streamlit as st
 from supabase import Client, create_client
@@ -45,6 +45,24 @@ def fetch_roster_by_date(client: Client, attendance_date: date):
             "attendance_date, level, grade, class_no, student_id, student_name, status, note, marked_by"
         )
         .eq("attendance_date", attendance_date.isoformat())
+        .order("level")
+        .order("grade")
+        .order("class_no")
+        .order("student_name")
+        .execute()
+    )
+    return result.data or []
+
+
+def fetch_roster_by_range(client: Client, start_date: date, end_date: date):
+    result = (
+        client.table("v_attendance_roster")
+        .select(
+            "attendance_date, level, grade, class_no, student_id, student_name, status, note, marked_by"
+        )
+        .gte("attendance_date", start_date.isoformat())
+        .lte("attendance_date", end_date.isoformat())
+        .order("attendance_date")
         .order("level")
         .order("grade")
         .order("class_no")
@@ -245,3 +263,60 @@ else:
     summary_cols[2].metric("결석", absent_cnt)
 
     st.dataframe(filtered_rows, use_container_width=True)
+
+st.divider()
+st.subheader("주차별 출석 현황 (일요일 기준)")
+
+week_anchor = st.date_input("주차 기준일", value=selected_date, key="week_anchor")
+days_since_sunday = (week_anchor.weekday() + 1) % 7
+week_start = week_anchor - timedelta(days=days_since_sunday)
+week_end = week_start + timedelta(days=6)
+
+st.caption(f"기준 주차: {week_start} ~ {week_end} (일~토)")
+
+try:
+    weekly_rows = fetch_roster_by_range(supabase, week_start, week_end)
+except Exception as e:
+    st.error(f"주간 조회 실패: {e}")
+    st.stop()
+
+weekly_filtered = [
+    r
+    for r in weekly_rows
+    if (r["level"], r["grade"], r["class_no"]) == selected_class
+]
+
+rows_by_student = defaultdict(list)
+for r in weekly_filtered:
+    rows_by_student[r["student_id"]].append(r)
+
+weekly_display = []
+weekly_status_counts = Counter()
+sunday_iso = week_start.isoformat()
+
+for student in sorted(class_students, key=lambda x: x["student_name"]):
+    student_rows = rows_by_student.get(student["student_id"], [])
+    sunday_row = next((r for r in student_rows if r["attendance_date"] == sunday_iso), None)
+    latest_row = max(student_rows, key=lambda x: x["attendance_date"]) if student_rows else None
+    chosen = sunday_row or latest_row
+
+    status = chosen["status"] if chosen else "absent"
+    weekly_status_counts[status] += 1
+
+    weekly_display.append(
+        {
+            "학생": student["student_name"],
+            "주간상태": status,
+            "기록일": chosen["attendance_date"] if chosen else "-",
+            "비고": chosen.get("note") if chosen else None,
+        }
+    )
+
+if not weekly_display:
+    st.info("해당 반의 학생 데이터가 없습니다.")
+else:
+    w_cols = st.columns(3)
+    w_cols[0].metric("출석", weekly_status_counts.get("present", 0))
+    w_cols[1].metric("지각", weekly_status_counts.get("late", 0))
+    w_cols[2].metric("결석", weekly_status_counts.get("absent", 0))
+    st.dataframe(weekly_display, use_container_width=True)
