@@ -1062,22 +1062,13 @@ with tab_dashboard:
                 if level_name in sibling_level_present_latest:
                     sibling_level_present_latest[level_name][sibling] += 1
 
-        st.markdown(
-            f"전체 형제 : {sibling_present_latest.get('형제', 0)}/{sibling_total_counts['형제']}, "
-            f"전체 자매 : {sibling_present_latest.get('자매', 0)}/{sibling_total_counts['자매']}"
-        )
-        st.markdown(
-            f"중등부 형제 : {sibling_level_present_latest['중등부'].get('형제', 0)}/{sibling_level_total_counts['중등부']['형제']}, "
-            f"중등부 자매 : {sibling_level_present_latest['중등부'].get('자매', 0)}/{sibling_level_total_counts['중등부']['자매']}"
-        )
-        st.markdown(
-            f"고등부 형제 : {sibling_level_present_latest['고등부'].get('형제', 0)}/{sibling_level_total_counts['고등부']['형제']}, "
-            f"고등부 자매 : {sibling_level_present_latest['고등부'].get('자매', 0)}/{sibling_level_total_counts['고등부']['자매']}"
-        )
-
         sib_col1, sib_col2 = st.columns(2)
         with sib_col1:
             st.subheader("전체 형제/자매 출석 통계")
+            st.markdown(
+                f"전체 형제 : {sibling_present_latest.get('형제', 0)}/{sibling_total_counts['형제']}, "
+                f"전체 자매 : {sibling_present_latest.get('자매', 0)}/{sibling_total_counts['자매']}"
+            )
             total_fig = go.Figure()
             x_total = ["형제", "자매"]
             y_total = [sibling_total.get("형제", 0), sibling_total.get("자매", 0)]
@@ -1104,6 +1095,14 @@ with tab_dashboard:
 
         with sib_col2:
             st.subheader("중등부/고등부별 형제/자매 출석 통계")
+            st.markdown(
+                f"중등부 형제 : {sibling_level_present_latest['중등부'].get('형제', 0)}/{sibling_level_total_counts['중등부']['형제']}, "
+                f"중등부 자매 : {sibling_level_present_latest['중등부'].get('자매', 0)}/{sibling_level_total_counts['중등부']['자매']}"
+            )
+            st.markdown(
+                f"고등부 형제 : {sibling_level_present_latest['고등부'].get('형제', 0)}/{sibling_level_total_counts['고등부']['형제']}, "
+                f"고등부 자매 : {sibling_level_present_latest['고등부'].get('자매', 0)}/{sibling_level_total_counts['고등부']['자매']}"
+            )
             level_sib_fig = go.Figure()
             x_levels = ["중등부", "고등부"]
             y_brother = [
