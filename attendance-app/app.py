@@ -516,21 +516,34 @@ else:
             {"status": "present", "count": status_counts.get("present", 0)},
             {"status": "absent", "count": status_counts.get("absent", 0)},
         ]
-        status_pie_chart = (
+        total_count = sum(item["count"] for item in status_chart_data) or 1
+        status_base = (
             alt.Chart(alt.Data(values=status_chart_data))
-            .mark_arc(innerRadius=40)
-            .encode(
-                theta=alt.Theta("count:Q", title="인원"),
-                color=alt.Color(
-                    "status:N",
-                    scale=alt.Scale(
-                        domain=["present", "absent"],
-                        range=["#0ea5e9", "#ef4444"],
-                    ),
-                    legend=alt.Legend(title="상태"),
+            .transform_calculate(percent=f"datum.count / {total_count} * 100")
+        )
+        status_pie_chart = status_base.mark_arc(innerRadius=40).encode(
+            theta=alt.Theta("count:Q", title="인원"),
+            color=alt.Color(
+                "status:N",
+                scale=alt.Scale(
+                    domain=["present", "absent"],
+                    range=["#0ea5e9", "#ef4444"],
                 ),
-                tooltip=["status:N", "count:Q"],
-            )
+                legend=alt.Legend(title="상태"),
+            ),
+            tooltip=[
+                "status:N",
+                "count:Q",
+                alt.Tooltip("percent:Q", title="비율(%)", format=".1f"),
+            ],
+        )
+        status_labels = status_base.mark_text(radius=95, size=12, color="white").encode(
+            theta=alt.Theta("count:Q"),
+            text=alt.Text("percent:Q", format=".1f"),
+        )
+        status_pie_chart = (
+            alt.layer(status_pie_chart, status_labels)
+            .configure_view(strokeOpacity=0)
         )
         st.altair_chart(status_pie_chart, use_container_width=True)
     with chart_col2:
@@ -559,10 +572,11 @@ else:
 
         weekly_rate_chart = (
             alt.Chart(alt.Data(values=weekly_rate_data))
-            .mark_line(point=True)
+            .mark_bar()
             .encode(
                 x=alt.X("week:N", title="주차(일요일 시작)"),
                 y=alt.Y("attendance_rate:Q", title="출석률(%)", scale=alt.Scale(domain=[0, 100])),
+                xOffset=alt.XOffset("day_type:N"),
                 color=alt.Color(
                     "day_type:N",
                     scale=alt.Scale(domain=["토요일", "일요일"], range=["#22c55e", "#f97316"]),
