@@ -153,6 +153,23 @@ def normalize_status(status: str) -> str:
     return "present" if status == "present" else "absent"
 
 
+def normalize_assistant_teacher(raw_value) -> str:
+    if not raw_value:
+        return "-"
+    if isinstance(raw_value, list):
+        names = [str(v).strip() for v in raw_value if str(v).strip()]
+    else:
+        text = str(raw_value).replace("/", ",").replace("|", ",").replace("\n", ",")
+        names = [n.strip() for n in text.split(",") if n.strip()]
+    deduped = []
+    seen = set()
+    for name in names:
+        if name not in seen:
+            deduped.append(name)
+            seen.add(name)
+    return deduped[0] if deduped else "-"
+
+
 def render_class_board(
     level_name: str,
     class_keys,
@@ -349,7 +366,9 @@ def render_weekly_section(
         for r in class_summary_rows
     }
     assistant_map = {
-        (r["level"], r["grade"], r["class_no"]): r.get("assistant_teachers")
+        (r["level"], r["grade"], r["class_no"]): normalize_assistant_teacher(
+            r.get("assistant_teachers")
+        )
         for r in class_summary_rows
     }
     students_by_class = defaultdict(list)
