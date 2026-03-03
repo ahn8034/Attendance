@@ -200,6 +200,42 @@ def normalize_assistant_teacher(raw_value) -> str:
     return deduped[0] if deduped else "-"
 
 
+def build_day_pie_chart(day_label: str, present_count: int, absent_count: int):
+    data = [
+        {"status": "present", "count": present_count},
+        {"status": "absent", "count": absent_count},
+    ]
+    base = (
+        alt.Chart(alt.Data(values=data))
+        .transform_joinaggregate(total="sum(count)")
+        .transform_calculate(percent="datum.total > 0 ? datum.count / datum.total * 100 : 0")
+    )
+    pie = base.mark_arc(innerRadius=42, outerRadius=110).encode(
+        theta=alt.Theta("count:Q"),
+        color=alt.Color(
+            "status:N",
+            scale=alt.Scale(domain=["present", "absent"], range=["#0ea5e9", "#ef4444"]),
+            legend=None,
+        ),
+        tooltip=[
+            alt.Tooltip("status:N", title="상태"),
+            alt.Tooltip("count:Q", title="인원"),
+            alt.Tooltip("percent:Q", title="비율(%)", format=".1f"),
+        ],
+    )
+    labels = (
+        base.transform_filter("datum.count > 0")
+        .mark_text(radius=78, size=11, color="white")
+        .encode(theta=alt.Theta("count:Q"), text=alt.Text("label:N"))
+        .transform_calculate(label="datum.count + '명'")
+    )
+    return (
+        alt.layer(pie, labels)
+        .properties(title=day_label)
+        .configure_view(strokeOpacity=0)
+    )
+
+
 def render_class_board(
     level_name: str,
     class_keys,
@@ -540,48 +576,22 @@ else:
 
     chart_col1, chart_col2 = st.columns(2)
     with chart_col1:
-        st.caption("상태별 분포")
-        status_chart_data = [
-            {"status": "present", "count": status_counts.get("present", 0)},
-            {"status": "absent", "count": status_counts.get("absent", 0)},
-        ]
-        status_base = (
-            alt.Chart(alt.Data(values=status_chart_data))
-            .transform_joinaggregate(total="sum(count)")
-            .transform_calculate(percent="datum.total > 0 ? datum.count / datum.total * 100 : 0")
-        )
-        status_pie_chart = status_base.mark_arc(innerRadius=40).encode(
-            theta=alt.Theta("count:Q", title="인원"),
-            color=alt.Color(
-                "status:N",
-                scale=alt.Scale(
-                    domain=["present", "absent"],
-                    range=["#0ea5e9", "#ef4444"],
-                ),
-                legend=alt.Legend(title="상태"),
-            ),
-            tooltip=[
-                "status:N",
-                "count:Q",
-                alt.Tooltip("percent:Q", title="비율(%)", format=".1f"),
-            ],
-        )
-        status_labels = (
-            status_base.transform_filter("datum.count > 0")
-            .mark_text(radius=68, size=11, color="white")
-            .encode(
-                theta=alt.Theta("count:Q"),
-                text=alt.Text("label:N"),
+        st.caption("상태별 분포 (토/일 분리)")
+        pie_cols = st.columns(2)
+        with pie_cols[0]:
+            sat_pie = build_day_pie_chart(
+                "토요일",
+                weekend_counts.get("sat_present", 0),
+                weekend_counts.get("sat_absent", 0),
             )
-        )
-        status_labels = status_labels.transform_calculate(
-            label="format(datum.percent, '.1f') + '% (' + datum.count + ')'"
-        )
-        status_pie_chart = (
-            alt.layer(status_pie_chart, status_labels)
-            .configure_view(strokeOpacity=0)
-        )
-        st.altair_chart(status_pie_chart, use_container_width=True)
+            st.altair_chart(sat_pie, use_container_width=True)
+        with pie_cols[1]:
+            sun_pie = build_day_pie_chart(
+                "일요일",
+                weekend_counts.get("sun_present", 0),
+                weekend_counts.get("sun_absent", 0),
+            )
+            st.altair_chart(sun_pie, use_container_width=True)
     with chart_col2:
         st.caption("주차별 출석 인원 (토/일 구분)")
         week_agg = defaultdict(lambda: {"sat_present": 0, "sun_present": 0})
@@ -638,7 +648,7 @@ else:
             alt.Chart(alt.Data(values=weekly_rate_data))
             .mark_text(dy=-8, color="white", size=11)
             .encode(
-                x=alt.X("week:N"),
+                x=alt.X("week:N", sort=alt.SortField(field="week_order", order="ascending")),
                 xOffset=alt.XOffset("day_type:N"),
                 y=alt.Y("attendance_count:Q"),
                 text=alt.Text("attendance_count:Q"),
