@@ -146,11 +146,11 @@ def save_attendance(
 
 
 def format_status_symbol(status: str) -> str:
-    if status == "present":
-        return "○"
-    if status == "late":
-        return "△"
-    return "×"
+    return "○" if status == "present" else "×"
+
+
+def normalize_status(status: str) -> str:
+    return "present" if status == "present" else "absent"
 
 
 def render_class_board(level_name: str, class_keys, students_by_class, status_by_student, homeroom_map):
@@ -308,7 +308,7 @@ def render_weekly_section(
         latest_row = max(student_rows, key=lambda x: x["attendance_date"]) if student_rows else None
         chosen = sunday_row or latest_row
 
-        status = chosen["status"] if chosen else "absent"
+        status = normalize_status(chosen["status"]) if chosen else "absent"
         status_by_student[student["student_id"]] = status
         weekly_status_counts[status] += 1
 
@@ -326,10 +326,9 @@ def render_weekly_section(
         st.info("해당 반의 학생 데이터가 없습니다.")
         return
 
-    w_cols = st.columns(3)
+    w_cols = st.columns(2)
     w_cols[0].metric("출석", weekly_status_counts.get("present", 0))
-    w_cols[1].metric("지각", weekly_status_counts.get("late", 0))
-    w_cols[2].metric("결석", weekly_status_counts.get("absent", 0))
+    w_cols[1].metric("결석", weekly_status_counts.get("absent", 0))
 
     homeroom_map = {
         (r["level"], r["grade"], r["class_no"]): r.get("homeroom_teacher")
@@ -402,14 +401,27 @@ st.subheader("전체 출석 데이터")
 if not all_rows:
     st.info("저장된 출석 데이터가 없습니다.")
 else:
-    status_counts = Counter(row["status"] for row in all_rows)
-    unique_students = len({row["student_id"] for row in all_rows})
-    date_counts = defaultdict(int)
+    unique_student_ids = {r["student_id"] for r in class_rows}
+    unique_students = len(unique_student_ids)
+    date_student_status = defaultdict(dict)
     for row in all_rows:
-        date_counts[row["attendance_date"]] += 1
+        sid = row.get("student_id")
+        adate = row.get("attendance_date")
+        if not sid or not adate or sid not in unique_student_ids:
+            continue
+        date_student_status[adate][sid] = normalize_status(row.get("status"))
+
+    status_counts = Counter()
+    date_counts = {}
+    for adate, student_map in date_student_status.items():
+        present_cnt = sum(1 for s in student_map.values() if s == "present")
+        absent_cnt = max(unique_students - present_cnt, 0)
+        status_counts["present"] += present_cnt
+        status_counts["absent"] += absent_cnt
+        date_counts[adate] = present_cnt + absent_cnt
 
     metric_cols = st.columns(4)
-    metric_cols[0].metric("전체 기록", len(all_rows))
+    metric_cols[0].metric("전체 기록", sum(date_counts.values()))
     metric_cols[1].metric("학생 수", unique_students)
     metric_cols[2].metric("출석", status_counts.get("present", 0))
     metric_cols[3].metric("결석", status_counts.get("absent", 0))
@@ -421,7 +433,6 @@ else:
             {
                 "count": {
                     "present": status_counts.get("present", 0),
-                    "late": status_counts.get("late", 0),
                     "absent": status_counts.get("absent", 0),
                 }
             }
@@ -450,7 +461,7 @@ student_options = {f"{r['student_name']} ({r['student_id'][:8]})": r for r in cl
 
 with st.form("attendance_form", clear_on_submit=True):
     selected_label = st.selectbox("학생", list(student_options.keys()))
-    status = st.selectbox("상태", ["present", "late", "absent"], index=0)
+    status = st.selectbox("상태", ["present", "absent"], index=0)
     note = st.text_input("비고", placeholder="선택")
     submitted = st.form_submit_button("저장")
 
@@ -492,13 +503,11 @@ filtered_rows = [
 if not filtered_rows:
     st.info("해당 날짜/반의 출석 데이터가 없습니다.")
 else:
-    summary_cols = st.columns(3)
-    present_cnt = sum(1 for r in filtered_rows if r["status"] == "present")
-    late_cnt = sum(1 for r in filtered_rows if r["status"] == "late")
-    absent_cnt = sum(1 for r in filtered_rows if r["status"] == "absent")
+    summary_cols = st.columns(2)
+    present_cnt = sum(1 for r in filtered_rows if normalize_status(r["status"]) == "present")
+    absent_cnt = len(class_students) - present_cnt
 
     summary_cols[0].metric("출석", present_cnt)
-    summary_cols[1].metric("지각", late_cnt)
-    summary_cols[2].metric("결석", absent_cnt)
+    summary_cols[1].metric("결석", max(absent_cnt, 0))
 
     st.dataframe(filtered_rows, use_container_width=True)
