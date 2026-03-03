@@ -323,10 +323,13 @@ def render_weekly_section(
         st.warning(f"{selected_year}년 {selected_month}월은 {len(sundays)}주차까지만 있습니다.")
         return
 
-    week_start = sundays[selected_week_no - 1]
-    week_end = week_start + timedelta(days=6)
+    sunday_date = sundays[selected_week_no - 1]
+    saturday_date = sunday_date - timedelta(days=1)
 
-    st.caption(f"기준 주차: {selected_year}년 {selected_month}월 {selected_week_no}주차 ({week_start} ~ {week_end})")
+    st.caption(
+        f"기준 주차: {selected_year}년 {selected_month}월 {selected_week_no}주차 "
+        f"(토 {saturday_date} / 일 {sunday_date})"
+    )
 
     week_class_filter_options = [("전체", 0, 0)] + class_options
     selected_week_class = st.selectbox(
@@ -338,7 +341,7 @@ def render_weekly_section(
     )
 
     try:
-        weekly_rows = fetch_roster_by_range(supabase, week_start, week_end)
+        weekly_rows = fetch_roster_by_range(supabase, saturday_date, sunday_date)
     except Exception as e:
         st.error(f"주간 조회 실패: {e}")
         return
@@ -379,12 +382,12 @@ def render_weekly_section(
         sat_rows = [
             r
             for r in student_rows
-            if day_code_from_date(date.fromisoformat(r["attendance_date"])) == "sat"
+            if r["attendance_date"] == saturday_date.isoformat()
         ]
         sun_rows = [
             r
             for r in student_rows
-            if day_code_from_date(date.fromisoformat(r["attendance_date"])) == "sun"
+            if r["attendance_date"] == sunday_date.isoformat()
         ]
 
         sat_status = normalize_status(sat_rows[-1]["status"]) if sat_rows else "absent"
@@ -563,11 +566,12 @@ else:
         week_agg = defaultdict(lambda: {"sat_present": 0, "sun_present": 0, "total": 0})
         for adate, student_map in date_student_status.items():
             day = date.fromisoformat(adate)
-            days_since_sunday = (day.weekday() + 1) % 7
-            week_start = day - timedelta(days=days_since_sunday)
-            week_key = week_start.isoformat()
-            present_cnt = sum(1 for s in student_map.values() if s == "present")
             day_code = day_code_from_date(day)
+            if day_code not in {"sat", "sun"}:
+                continue
+            anchor_sunday = day + timedelta(days=1) if day_code == "sat" else day
+            week_key = anchor_sunday.isoformat()
+            present_cnt = sum(1 for s in student_map.values() if s == "present")
             if day_code == "sat":
                 week_agg[week_key]["sat_present"] += present_cnt
                 week_agg[week_key]["total"] += unique_students
