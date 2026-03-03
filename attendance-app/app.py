@@ -717,230 +717,210 @@ if not class_options:
 if handle_qr_checkin(supabase):
     st.stop()
 
-render_weekly_section(
-    supabase=supabase,
-    class_options=class_options,
-    class_rows=class_rows,
-    class_summary_rows=class_summary_rows,
-    default_anchor=date.today(),
-)
+tab_dashboard, tab_admin = st.tabs(["대시보드", "관리자"])
 
-st.divider()
-st.subheader("전체 출석 데이터")
-if not all_rows:
-    st.info("저장된 출석 데이터가 없습니다.")
-else:
-    unique_student_ids = {r["student_id"] for r in class_rows}
-    unique_students = len(unique_student_ids)
-    date_student_status = defaultdict(dict)
-    for row in all_rows:
-        sid = row.get("student_id")
-        adate = row.get("attendance_date")
-        if not sid or not adate or sid not in unique_student_ids:
-            continue
-        date_student_status[adate][sid] = normalize_status(row.get("status"))
+with tab_dashboard:
+    render_weekly_section(
+        supabase=supabase,
+        class_options=class_options,
+        class_rows=class_rows,
+        class_summary_rows=class_summary_rows,
+        default_anchor=date.today(),
+    )
 
-    status_counts = Counter()
-    date_counts = {}
-    weekend_counts = Counter()
-    for adate, student_map in date_student_status.items():
-        day = date.fromisoformat(adate)
-        day_code = day_code_from_date(day)
-        present_cnt = sum(1 for s in student_map.values() if s == "present")
-        absent_cnt = max(unique_students - present_cnt, 0)
-        status_counts["present"] += present_cnt
-        status_counts["absent"] += absent_cnt
-        date_counts[adate] = present_cnt + absent_cnt
-        if day_code == "sat":
-            weekend_counts["sat_present"] += present_cnt
-            weekend_counts["sat_absent"] += absent_cnt
-        elif day_code == "sun":
-            weekend_counts["sun_present"] += present_cnt
-            weekend_counts["sun_absent"] += absent_cnt
+    st.divider()
+    st.subheader("전체 출석 데이터")
+    if not all_rows:
+        st.info("저장된 출석 데이터가 없습니다.")
+    else:
+        unique_student_ids = {r["student_id"] for r in class_rows}
+        unique_students = len(unique_student_ids)
+        date_student_status = defaultdict(dict)
+        for row in all_rows:
+            sid = row.get("student_id")
+            adate = row.get("attendance_date")
+            if not sid or not adate or sid not in unique_student_ids:
+                continue
+            date_student_status[adate][sid] = normalize_status(row.get("status"))
 
-    chart_col1, chart_col2 = st.columns(2)
-    with chart_col1:
-        weekend_bar = build_weekend_status_bar_chart(
-            sat_present=weekend_counts.get("sat_present", 0),
-            sat_absent=weekend_counts.get("sat_absent", 0),
-            sun_present=weekend_counts.get("sun_present", 0),
-            sun_absent=weekend_counts.get("sun_absent", 0),
-        )
-        st.plotly_chart(weekend_bar, use_container_width=True, config={"displayModeBar": False})
-    with chart_col2:
-        st.caption("주차별 출석 인원 (토/일 구분)")
-        week_agg = defaultdict(lambda: {"sat_present": 0, "sun_present": 0})
+        weekend_counts = Counter()
         for adate, student_map in date_student_status.items():
             day = date.fromisoformat(adate)
             day_code = day_code_from_date(day)
-            if day_code not in {"sat", "sun"}:
-                continue
-            anchor_sunday = day + timedelta(days=1) if day_code == "sat" else day
-            week_key = anchor_sunday.isoformat()
             present_cnt = sum(1 for s in student_map.values() if s == "present")
+            absent_cnt = max(unique_students - present_cnt, 0)
             if day_code == "sat":
-                week_agg[week_key]["sat_present"] += present_cnt
+                weekend_counts["sat_present"] += present_cnt
+                weekend_counts["sat_absent"] += absent_cnt
             elif day_code == "sun":
-                week_agg[week_key]["sun_present"] += present_cnt
+                weekend_counts["sun_present"] += present_cnt
+                weekend_counts["sun_absent"] += absent_cnt
 
-        weekly_rate_data = []
-        max_trend_count = 1
-        for idx, (week_key, agg) in enumerate(sorted(week_agg.items(), key=lambda x: x[0])):
-            week_start_date = date.fromisoformat(week_key)
-            week_label = week_label_from_sunday(week_start_date)
-            sat_count = agg["sat_present"]
-            sun_count = agg["sun_present"]
-            max_trend_count = max(max_trend_count, sat_count, sun_count)
-            weekly_rate_data.append(
-                {
-                    "week": week_label,
-                    "week_order": idx,
-                    "day_type": "토요일",
-                    "attendance_count": sat_count,
-                }
+        metric_cols = st.columns(5)
+        metric_cols[0].metric("학생 수(교사 제외)", unique_students)
+        metric_cols[1].metric("토요일 출석", weekend_counts.get("sat_present", 0))
+        metric_cols[2].metric("토요일 결석", weekend_counts.get("sat_absent", 0))
+        metric_cols[3].metric("일요일 출석", weekend_counts.get("sun_present", 0))
+        metric_cols[4].metric("일요일 결석", weekend_counts.get("sun_absent", 0))
+
+        chart_col1, chart_col2 = st.columns(2)
+        with chart_col1:
+            weekend_bar = build_weekend_status_bar_chart(
+                sat_present=weekend_counts.get("sat_present", 0),
+                sat_absent=weekend_counts.get("sat_absent", 0),
+                sun_present=weekend_counts.get("sun_present", 0),
+                sun_absent=weekend_counts.get("sun_absent", 0),
             )
-            weekly_rate_data.append(
-                {
-                    "week": week_label,
-                    "week_order": idx,
-                    "day_type": "일요일",
-                    "attendance_count": sun_count,
-                }
+            st.plotly_chart(weekend_bar, use_container_width=True, config={"displayModeBar": False})
+
+        with chart_col2:
+            st.caption("주차별 출석 인원 (토/일 구분)")
+            week_agg = defaultdict(lambda: {"sat_present": 0, "sun_present": 0})
+            for adate, student_map in date_student_status.items():
+                day = date.fromisoformat(adate)
+                day_code = day_code_from_date(day)
+                if day_code not in {"sat", "sun"}:
+                    continue
+                anchor_sunday = day + timedelta(days=1) if day_code == "sat" else day
+                week_key = anchor_sunday.isoformat()
+                present_cnt = sum(1 for s in student_map.values() if s == "present")
+                if day_code == "sat":
+                    week_agg[week_key]["sat_present"] += present_cnt
+                elif day_code == "sun":
+                    week_agg[week_key]["sun_present"] += present_cnt
+
+            week_rows = sorted(week_agg.items(), key=lambda x: x[0])
+            weeks = [week_label_from_sunday(date.fromisoformat(k)) for k, _ in week_rows]
+            sat_vals = [v["sat_present"] for _, v in week_rows]
+            sun_vals = [v["sun_present"] for _, v in week_rows]
+            y_max = max(sat_vals + sun_vals + [1]) * 1.35
+
+            trend_fig = go.Figure()
+            trend_fig.add_trace(
+                go.Scatter(
+                    name="토요일",
+                    x=weeks,
+                    y=sat_vals,
+                    mode="lines+markers+text",
+                    text=sat_vals,
+                    textposition="top center",
+                    line=dict(color="#22c55e", width=3),
+                    marker=dict(size=8),
+                )
             )
-
-        for row in weekly_rate_data:
-            row["label_y"] = row["attendance_count"] + max_trend_count * 0.06
-
-        week_rows = sorted(week_agg.items(), key=lambda x: x[0])
-        weeks = [week_label_from_sunday(date.fromisoformat(k)) for k, _ in week_rows]
-        sat_vals = [v["sat_present"] for _, v in week_rows]
-        sun_vals = [v["sun_present"] for _, v in week_rows]
-        y_max = max(sat_vals + sun_vals + [1]) * 1.35
-
-        trend_fig = go.Figure()
-        trend_fig.add_trace(
-            go.Scatter(
-                name="토요일",
-                x=weeks,
-                y=sat_vals,
-                mode="lines+markers+text",
-                text=sat_vals,
-                textposition="top center",
-                line=dict(color="#22c55e", width=3),
-                marker=dict(size=8),
+            trend_fig.add_trace(
+                go.Scatter(
+                    name="일요일",
+                    x=weeks,
+                    y=sun_vals,
+                    mode="lines+markers+text",
+                    text=sun_vals,
+                    textposition="top center",
+                    line=dict(color="#f97316", width=3),
+                    marker=dict(size=8),
+                )
             )
-        )
-        trend_fig.add_trace(
-            go.Scatter(
-                name="일요일",
-                x=weeks,
-                y=sun_vals,
-                mode="lines+markers+text",
-                text=sun_vals,
-                textposition="top center",
-                line=dict(color="#f97316", width=3),
-                marker=dict(size=8),
+            trend_fig.update_layout(
+                yaxis=dict(title="출석 인원(명)", range=[0, y_max]),
+                xaxis=dict(title="주차"),
+                margin=dict(l=20, r=20, t=20, b=20),
+                legend=dict(title="요일"),
+                template="plotly_dark",
+                height=320,
             )
-        )
-        trend_fig.update_layout(
-            yaxis=dict(title="출석 인원(명)", range=[0, y_max]),
-            xaxis=dict(title="주차"),
-            margin=dict(l=20, r=20, t=20, b=20),
-            legend=dict(title="요일"),
-            template="plotly_dark",
-            height=320,
-        )
-        st.plotly_chart(trend_fig, use_container_width=True, config={"displayModeBar": False})
+            st.plotly_chart(trend_fig, use_container_width=True, config={"displayModeBar": False})
 
-st.divider()
-st.markdown("#### 수동 출석 입력")
-manual_date = st.date_input("수동 출석 날짜", value=date.today(), key="manual_date_input")
-manual_day_label = day_label_from_date(manual_date)
-st.caption(f"선택한 날짜 요일: {manual_day_label}")
+with tab_admin:
+    st.markdown("#### 수동 출석 입력")
+    manual_date = st.date_input("수동 출석 날짜", value=date.today(), key="manual_date_input")
+    manual_day_label = day_label_from_date(manual_date)
+    st.caption(f"선택한 날짜 요일: {manual_day_label}")
 
-manual_class = st.selectbox(
-    "수동 출석 반 선택",
-    class_options,
-    format_func=lambda c: f"{c[0]} {c[1]}학년 {c[2]}반",
-    key="manual_class_select",
-)
-
-manual_students = [
-    r for r in class_rows if (r["level"], r["grade"], r["class_no"]) == manual_class
-]
-manual_student_options = {
-    f"{r['student_name']} ({r['student_id'][:8]})": r for r in manual_students
-}
-
-if not manual_student_options:
-    st.info("선택한 반에 학생 정보가 없습니다.")
-else:
-    manual_cols = st.columns([3, 1])
-    with manual_cols[0]:
-        selected_manual_student = st.selectbox(
-            "학생",
-            list(manual_student_options.keys()),
-            key="manual_student_pick",
-        )
-    with manual_cols[1]:
-        submit_manual = st.button("수동 출석 등록", use_container_width=True, key="manual_submit")
-
-    if submit_manual:
-        if day_code_from_date(manual_date) not in {"sat", "sun"}:
-            st.warning("수동 출석 등록은 토요일/일요일만 가능합니다.")
-        else:
-            student = manual_student_options[selected_manual_student]
-            school_class_id = find_school_class_id_by_student_id(supabase, student["student_id"])
-            if not school_class_id:
-                st.error("student_class에서 반 정보를 찾지 못했습니다.")
-            else:
-                try:
-                    save_attendance(
-                        client=supabase,
-                        attendance_date=manual_date,
-                        student_id=student["student_id"],
-                        school_class_id=school_class_id,
-                        status="present",
-                        note="manual check-in",
-                    )
-                    st.success(f"수동 등록 완료: {student['student_name']}")
-                except Exception as e:
-                    st.error(f"수동 등록 실패: {e}")
-
-st.markdown("#### QR 출석 링크 생성")
-qr_cols = st.columns(3)
-with qr_cols[0]:
-    qr_date = st.date_input("QR 날짜", value=date.today(), key="qr_date_input")
-with qr_cols[1]:
-    st.empty()
-with qr_cols[2]:
-    st.empty()
-
-app_base_url = resolve_app_base_url()
-app_tz = get_app_timezone()
-active_qr_slot = current_qr_slot(app_tz)
-slot_start = datetime.now(app_tz).replace(minute=0, second=0, microsecond=0)
-slot_end = slot_start + timedelta(hours=1)
-
-if day_code_from_date(qr_date) not in {"sat", "sun"}:
-    st.info("QR 날짜는 토요일/일요일만 선택하세요.")
-else:
-    qr_url = build_qr_checkin_url(
-        base_url=app_base_url,
-        attendance_date=qr_date,
-        status="present",
-        qr_slot=active_qr_slot,
+    manual_class = st.selectbox(
+        "수동 출석 반 선택",
+        class_options,
+        format_func=lambda c: f"{c[0]} {c[1]}학년 {c[2]}반",
+        key="manual_class_select",
     )
-    st.caption(f"현재 QR 유효시간: {slot_start.strftime('%H:%M')} ~ {slot_end.strftime('%H:%M')} ({app_tz})")
-    st.code(qr_url)
-    if app_base_url:
-        st.image(
-            f"https://quickchart.io/qr?size=170&text={quote_plus(qr_url)}",
-            caption="학생이 스캔한 뒤 이름 입력 + source_key 선택으로 출석 처리됩니다.",
-            width=170,
-        )
+
+    manual_students = [
+        r for r in class_rows if (r["level"], r["grade"], r["class_no"]) == manual_class
+    ]
+    manual_student_options = {
+        f"{r['student_name']} ({r['student_id'][:8]})": r for r in manual_students
+    }
+
+    if not manual_student_options:
+        st.info("선택한 반에 학생 정보가 없습니다.")
     else:
-        st.warning(
-            "앱 URL을 자동으로 찾지 못했습니다. Streamlit Secrets에 "
-            "`APP_BASE_URL = \"https://<app>.streamlit.app\"`를 추가하세요."
+        manual_cols = st.columns([3, 1])
+        with manual_cols[0]:
+            selected_manual_student = st.selectbox(
+                "학생",
+                list(manual_student_options.keys()),
+                key="manual_student_pick",
+            )
+        with manual_cols[1]:
+            submit_manual = st.button("수동 출석 등록", use_container_width=True, key="manual_submit")
+
+        if submit_manual:
+            if day_code_from_date(manual_date) not in {"sat", "sun"}:
+                st.warning("수동 출석 등록은 토요일/일요일만 가능합니다.")
+            else:
+                student = manual_student_options[selected_manual_student]
+                school_class_id = find_school_class_id_by_student_id(supabase, student["student_id"])
+                if not school_class_id:
+                    st.error("student_class에서 반 정보를 찾지 못했습니다.")
+                else:
+                    try:
+                        save_attendance(
+                            client=supabase,
+                            attendance_date=manual_date,
+                            student_id=student["student_id"],
+                            school_class_id=school_class_id,
+                            status="present",
+                            note="manual check-in",
+                        )
+                        st.success(f"수동 등록 완료: {student['student_name']}")
+                    except Exception as e:
+                        st.error(f"수동 등록 실패: {e}")
+
+    st.markdown("#### QR 출석 링크 생성")
+    qr_cols = st.columns(3)
+    with qr_cols[0]:
+        qr_date = st.date_input("QR 날짜", value=date.today(), key="qr_date_input")
+    with qr_cols[1]:
+        st.empty()
+    with qr_cols[2]:
+        st.empty()
+
+    app_base_url = resolve_app_base_url()
+    app_tz = get_app_timezone()
+    active_qr_slot = current_qr_slot(app_tz)
+    slot_start = datetime.now(app_tz).replace(minute=0, second=0, microsecond=0)
+    slot_end = slot_start + timedelta(hours=1)
+
+    if day_code_from_date(qr_date) not in {"sat", "sun"}:
+        st.info("QR 날짜는 토요일/일요일만 선택하세요.")
+    else:
+        qr_url = build_qr_checkin_url(
+            base_url=app_base_url,
+            attendance_date=qr_date,
+            status="present",
+            qr_slot=active_qr_slot,
         )
+        st.caption(
+            f"현재 QR 유효시간: {slot_start.strftime('%H:%M')} ~ {slot_end.strftime('%H:%M')} ({app_tz})"
+        )
+        st.code(qr_url)
+        if app_base_url:
+            st.image(
+                f"https://quickchart.io/qr?size=170&text={quote_plus(qr_url)}",
+                caption="학생이 스캔한 뒤 이름 입력 + source_key 선택으로 출석 처리됩니다.",
+                width=170,
+            )
+        else:
+            st.warning(
+                "앱 URL을 자동으로 찾지 못했습니다. Streamlit Secrets에 "
+                "`APP_BASE_URL = \"https://<app>.streamlit.app\"`를 추가하세요."
+            )
