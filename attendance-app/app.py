@@ -625,11 +625,10 @@ else:
 
         weekly_count_chart = (
             alt.Chart(alt.Data(values=weekly_rate_data))
-            .mark_bar()
+            .mark_line(point=True, strokeWidth=3)
             .encode(
                 x=alt.X("week:N", title="주차", sort=alt.SortField(field="week_order", order="ascending")),
                 y=alt.Y("attendance_count:Q", title="출석 인원(명)"),
-                xOffset=alt.XOffset("day_type:N"),
                 color=alt.Color(
                     "day_type:N",
                     scale=alt.Scale(domain=["토요일", "일요일"], range=["#22c55e", "#f97316"]),
@@ -640,11 +639,15 @@ else:
         )
         weekly_count_text = (
             alt.Chart(alt.Data(values=weekly_rate_data))
-            .mark_text(dy=-8, color="white", size=11)
+            .mark_text(dy=-10, color="white", size=11)
             .encode(
                 x=alt.X("week:N", sort=alt.SortField(field="week_order", order="ascending")),
-                xOffset=alt.XOffset("day_type:N"),
                 y=alt.Y("attendance_count:Q"),
+                color=alt.Color(
+                    "day_type:N",
+                    scale=alt.Scale(domain=["토요일", "일요일"], range=["#22c55e", "#f97316"]),
+                    legend=None,
+                ),
                 text=alt.Text("attendance_count:Q"),
             )
         )
