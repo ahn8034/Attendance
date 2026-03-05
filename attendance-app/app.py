@@ -1492,15 +1492,13 @@ with tab_admin:
     if not manual_student_options:
         st.info("선택한 반에 학생 정보가 없습니다.")
     else:
-        manual_cols = st.columns([4, 1])
-        with manual_cols[0]:
-            selected_manual_student = st.selectbox(
-                "학생",
-                list(manual_student_options.keys()),
-                key="manual_student_pick",
-            )
-        with manual_cols[1]:
-            st.markdown("<div style='height: 1.8rem'></div>", unsafe_allow_html=True)
+        selected_manual_student = st.selectbox(
+            "학생",
+            list(manual_student_options.keys()),
+            key="manual_student_pick",
+        )
+        manual_action_cols = st.columns([1, 3])
+        with manual_action_cols[0]:
             submit_manual = st.button("수동 출석 등록", use_container_width=True, key="manual_submit")
 
         if submit_manual:
@@ -1526,15 +1524,13 @@ with tab_admin:
                         st.error(f"수동 등록 실패: {e}")
 
         st.markdown("##### 수동 출석 취소(삭제)")
-        cancel_cols = st.columns([4, 1])
-        with cancel_cols[0]:
-            cancel_student_label = st.selectbox(
-                "취소할 학생",
-                list(manual_student_options.keys()),
-                key="manual_cancel_student_pick",
-            )
-        with cancel_cols[1]:
-            st.markdown("<div style='height: 1.8rem'></div>", unsafe_allow_html=True)
+        cancel_student_label = st.selectbox(
+            "취소할 학생",
+            list(manual_student_options.keys()),
+            key="manual_cancel_student_pick",
+        )
+        cancel_action_cols = st.columns([1, 3])
+        with cancel_action_cols[0]:
             cancel_manual = st.button(
                 "출석 취소",
                 use_container_width=True,
