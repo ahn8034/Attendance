@@ -423,6 +423,12 @@ def save_teacher_attendance(client: Client, attendance_date: date, teacher_id: s
         client.table("teacher_attendance").insert(payload).execute()
 
 
+def delete_teacher_attendance(client: Client, attendance_date: date, teacher_id: str) -> None:
+    client.table("teacher_attendance").delete().eq("attendance_date", attendance_date.isoformat()).eq(
+        "teacher_id", teacher_id
+    ).execute()
+
+
 def handle_qr_checkin(supabase: Client):
     qr_date = get_query_value("qr_date").strip()
     qr_status = "present"
@@ -1566,6 +1572,60 @@ with tab_admin:
                     st.rerun()
                 except Exception as e:
                     st.error(f"수동 출석 취소 실패: {e}")
+
+        st.markdown("##### 선생님 출석 취소")
+        teacher_cancel_date = st.date_input(
+            "선생님 취소 날짜",
+            value=manual_date,
+            key="manual_teacher_cancel_date_input",
+        )
+        st.caption(f"선생님 취소 날짜 요일: {day_label_from_date(teacher_cancel_date)}")
+        teacher_cancel_options = {}
+        try:
+            teacher_rows = fetch_teacher_list(supabase)
+            assigned_teacher_ids = set(fetch_class_teacher_ids(supabase))
+            assigned_teachers = [t for t in teacher_rows if t.get("id") in assigned_teacher_ids]
+            teacher_cancel_options = {
+                f"{t['name']} ({t['id'][:8]})": t for t in sorted(assigned_teachers, key=lambda x: x["name"])
+            }
+        except Exception:
+            teacher_cancel_options = {}
+
+        if teacher_cancel_options:
+            teacher_cancel_label = st.selectbox(
+                "취소할 선생님",
+                list(teacher_cancel_options.keys()),
+                key="manual_teacher_cancel_pick",
+            )
+        else:
+            teacher_cancel_label = ""
+            st.info("취소 가능한 선생님 목록을 불러오지 못했습니다.")
+
+        teacher_cancel_cols = st.columns([1, 3])
+        with teacher_cancel_cols[0]:
+            submit_teacher_cancel = st.button(
+                "선생님 출석 취소",
+                use_container_width=True,
+                key="manual_teacher_cancel_submit",
+                disabled=not bool(teacher_cancel_options),
+            )
+
+        if submit_teacher_cancel:
+            if day_code_from_date(teacher_cancel_date) not in {"sat", "sun"}:
+                st.warning("선생님 출석 취소는 토요일/일요일만 가능합니다.")
+            else:
+                teacher = teacher_cancel_options[teacher_cancel_label]
+                try:
+                    delete_teacher_attendance(
+                        client=supabase,
+                        attendance_date=teacher_cancel_date,
+                        teacher_id=teacher["id"],
+                    )
+                    st.success(f"선생님 출석 취소 완료: {teacher['name']}")
+                    st.cache_data.clear()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"선생님 출석 취소 실패: {e}")
 
     st.markdown("#### QR 출석 링크 생성")
     qr_cols = st.columns(3)
