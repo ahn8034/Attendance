@@ -1003,7 +1003,7 @@ if not class_options:
 if handle_qr_checkin(supabase):
     st.stop()
 
-tab_dashboard, tab_admin = st.tabs(["대시보드", "관리자"])
+tab_dashboard, tab_individual, tab_admin = st.tabs(["전체출석", "개별출석", "관리자"])
 
 with tab_dashboard:
     render_weekly_section(
@@ -1383,6 +1383,117 @@ with tab_dashboard:
                 sibling_by_level_day["고등부"]["sat"].get("자매", 0),
                 sibling_by_level_day["고등부"]["sun"].get("자매", 0),
             )
+
+with tab_individual:
+    st.subheader("개별출석")
+    individual_class = st.selectbox(
+        "반 선택",
+        class_options,
+        format_func=lambda c: f"{c[0]} {c[1]}학년 {c[2]}반",
+        key="individual_class_select",
+    )
+    individual_students = sorted(
+        [r for r in class_rows if (r["level"], r["grade"], r["class_no"]) == individual_class],
+        key=lambda r: (r.get("student_name") or ""),
+    )
+    if not individual_students:
+        st.info("선택한 반에 학생 정보가 없습니다.")
+    else:
+        individual_student_options = {
+            f"{r['student_name']} ({r['student_id'][:8]})": r for r in individual_students
+        }
+        selected_individual_student_label = st.selectbox(
+            "학생 선택",
+            list(individual_student_options.keys()),
+            key="individual_student_select",
+        )
+        selected_student = individual_student_options[selected_individual_student_label]
+        selected_student_id = selected_student["student_id"]
+        selected_student_name = selected_student["student_name"]
+
+        weekend_dates = sorted(
+            {
+                date.fromisoformat(r["attendance_date"])
+                for r in all_rows
+                if r.get("attendance_date")
+                and day_code_from_date(date.fromisoformat(r["attendance_date"])) in {"sat", "sun"}
+            }
+        )
+        if not weekend_dates:
+            st.info("주말 출석 데이터가 없습니다.")
+        else:
+            all_week_keys = sorted(
+                {
+                    (d + timedelta(days=1)).isoformat() if day_code_from_date(d) == "sat" else d.isoformat()
+                    for d in weekend_dates
+                }
+            )
+
+            student_weekly_presence = defaultdict(lambda: {"sat": 0, "sun": 0})
+            for row in all_rows:
+                if row.get("student_id") != selected_student_id:
+                    continue
+                adate_raw = row.get("attendance_date")
+                if not adate_raw:
+                    continue
+                adate = date.fromisoformat(adate_raw)
+                day_code = day_code_from_date(adate)
+                if day_code not in {"sat", "sun"}:
+                    continue
+                if normalize_status(row.get("status")) != "present":
+                    continue
+                week_key = (adate + timedelta(days=1)).isoformat() if day_code == "sat" else adate.isoformat()
+                student_weekly_presence[week_key][day_code] = 1
+
+            week_labels = [week_label_from_sunday(date.fromisoformat(k)) for k in all_week_keys]
+            sat_vals = [student_weekly_presence[k]["sat"] for k in all_week_keys]
+            sun_vals = [student_weekly_presence[k]["sun"] for k in all_week_keys]
+
+            summary_cols = st.columns(2)
+            summary_cols[0].metric("토요일 출석 횟수", sum(sat_vals))
+            summary_cols[1].metric("일요일 출석 횟수", sum(sun_vals))
+
+            fig = go.Figure()
+            fig.add_trace(
+                go.Scatter(
+                    name="토요일",
+                    x=week_labels,
+                    y=sat_vals,
+                    mode="lines+markers+text",
+                    text=sat_vals,
+                    textposition="top center",
+                    line=dict(color="#22c55e", width=3),
+                    marker=dict(size=8),
+                )
+            )
+            fig.add_trace(
+                go.Scatter(
+                    name="일요일",
+                    x=week_labels,
+                    y=sun_vals,
+                    mode="lines+markers+text",
+                    text=sun_vals,
+                    textposition="top center",
+                    line=dict(color="#f97316", width=3),
+                    marker=dict(size=8),
+                )
+            )
+            fig.update_layout(
+                title=f"{selected_student_name} 주차별 출석 트렌드",
+                yaxis=dict(
+                    title="출석 여부",
+                    range=[-0.05, 1.15],
+                    tickmode="array",
+                    tickvals=[0, 1],
+                    ticktext=["결석", "출석"],
+                ),
+                xaxis=dict(title="주차"),
+                margin=dict(l=20, r=20, t=60, b=20),
+                legend=dict(title="요일"),
+                template="plotly_dark",
+                height=380,
+            )
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
 with tab_admin:
     st.markdown("#### 학생 추가")
