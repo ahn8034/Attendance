@@ -200,6 +200,12 @@ def save_attendance(
         client.table("attendance").insert(payload).execute()
 
 
+def delete_attendance(client: Client, attendance_date: date, student_id: str) -> None:
+    client.table("attendance").delete().eq("attendance_date", attendance_date.isoformat()).eq(
+        "student_id", student_id
+    ).execute()
+
+
 def format_status_symbol(status: str) -> str:
     return "○" if status == "present" else "×"
 
@@ -349,6 +355,51 @@ def find_school_class_id_by_student_id(client: Client, student_id: str) -> str:
     if not links:
         return ""
     return links[0].get("school_class_id", "")
+
+
+def find_school_class_id(client: Client, level: str, grade: int, class_no: int) -> str:
+    rows = (
+        client.table("school_class")
+        .select("id")
+        .eq("level", level)
+        .eq("grade", grade)
+        .eq("class_no", class_no)
+        .limit(1)
+        .execute()
+    ).data or []
+    if not rows:
+        return ""
+    return rows[0].get("id", "")
+
+
+def create_student_with_class(
+    client: Client,
+    student_name: str,
+    source_key: str | None,
+    school_class_id: str,
+) -> str:
+    payload = {"name": student_name.strip()}
+    if source_key:
+        payload["source_key"] = source_key.strip()
+
+    created = client.table("student").insert(payload).execute().data or []
+    if not created or not created[0].get("id"):
+        raise RuntimeError("student 생성 결과에서 id를 받지 못했습니다.")
+
+    student_id = created[0]["id"]
+    link_payload = {"student_id": student_id, "school_class_id": school_class_id}
+    try:
+        client.table("student_class").upsert(link_payload, on_conflict="student_id,school_class_id").execute()
+    except Exception:
+        client.table("student_class").insert(link_payload).execute()
+    return student_id
+
+
+def delete_student_with_related(client: Client, student_id: str) -> None:
+    # 학생 출석/반연결을 먼저 제거한 뒤 학생 마스터를 삭제한다.
+    client.table("attendance").delete().eq("student_id", student_id).execute()
+    client.table("student_class").delete().eq("student_id", student_id).execute()
+    client.table("student").delete().eq("id", student_id).execute()
 
 
 def save_teacher_attendance(client: Client, attendance_date: date, teacher_id: str) -> None:
@@ -1331,6 +1382,94 @@ with tab_dashboard:
             )
 
 with tab_admin:
+    st.markdown("#### 학생 추가")
+    add_student_cols = st.columns([2, 2, 3, 1])
+    with add_student_cols[0]:
+        new_student_name = st.text_input("학생 이름", key="admin_new_student_name")
+    with add_student_cols[1]:
+        new_student_source_key = st.text_input(
+            "source_key(선택)",
+            key="admin_new_student_source_key",
+            placeholder="예: 1234567890",
+        )
+    with add_student_cols[2]:
+        new_student_class = st.selectbox(
+            "배정 반",
+            class_options,
+            format_func=lambda c: f"{c[0]} {c[1]}학년 {c[2]}반",
+            key="admin_new_student_class",
+        )
+    with add_student_cols[3]:
+        st.markdown("<div style='height: 1.8rem'></div>", unsafe_allow_html=True)
+        submit_new_student = st.button("학생 추가", use_container_width=True, key="admin_new_student_submit")
+
+    if submit_new_student:
+        if not new_student_name.strip():
+            st.warning("학생 이름을 입력하세요.")
+        else:
+            level, grade, class_no = new_student_class
+            try:
+                school_class_id = find_school_class_id(supabase, level, int(grade), int(class_no))
+                if not school_class_id:
+                    st.error("school_class에서 선택한 반을 찾지 못했습니다.")
+                else:
+                    create_student_with_class(
+                        client=supabase,
+                        student_name=new_student_name,
+                        source_key=new_student_source_key.strip() or None,
+                        school_class_id=school_class_id,
+                    )
+                    st.success(f"학생 추가 완료: {new_student_name} ({level} {grade}학년 {class_no}반)")
+                    st.cache_data.clear()
+                    st.rerun()
+            except Exception as e:
+                st.error(f"학생 추가 실패: {e}")
+
+    st.markdown("#### 학생 삭제")
+    delete_student_cols = st.columns([2, 3, 1])
+    with delete_student_cols[0]:
+        delete_student_class = st.selectbox(
+            "삭제할 반",
+            class_options,
+            format_func=lambda c: f"{c[0]} {c[1]}학년 {c[2]}반",
+            key="admin_delete_student_class",
+        )
+    students_in_delete_class = [
+        r for r in class_rows if (r["level"], r["grade"], r["class_no"]) == delete_student_class
+    ]
+    delete_student_options = {
+        f"{r['student_name']} ({r['student_id'][:8]})": r for r in students_in_delete_class
+    }
+    with delete_student_cols[1]:
+        if delete_student_options:
+            selected_delete_student_label = st.selectbox(
+                "삭제할 학생",
+                list(delete_student_options.keys()),
+                key="admin_delete_student_pick",
+            )
+        else:
+            selected_delete_student_label = ""
+            st.info("선택한 반에 삭제할 학생이 없습니다.")
+    with delete_student_cols[2]:
+        st.markdown("<div style='height: 1.8rem'></div>", unsafe_allow_html=True)
+        submit_delete_student = st.button(
+            "학생 삭제",
+            use_container_width=True,
+            key="admin_delete_student_submit",
+            disabled=not bool(delete_student_options),
+        )
+
+    if submit_delete_student and delete_student_options:
+        target_student = delete_student_options[selected_delete_student_label]
+        try:
+            delete_student_with_related(supabase, target_student["student_id"])
+            st.success(f"학생 삭제 완료: {target_student['student_name']}")
+            st.cache_data.clear()
+            st.rerun()
+        except Exception as e:
+            st.error(f"학생 삭제 실패: {e}")
+
+    st.divider()
     st.markdown("#### 수동 출석 입력")
     manual_date = st.date_input("수동 출석 날짜", value=date.today(), key="manual_date_input")
     manual_day_label = day_label_from_date(manual_date)
@@ -1353,7 +1492,7 @@ with tab_admin:
     if not manual_student_options:
         st.info("선택한 반에 학생 정보가 없습니다.")
     else:
-        manual_cols = st.columns([3, 1])
+        manual_cols = st.columns([4, 1])
         with manual_cols[0]:
             selected_manual_student = st.selectbox(
                 "학생",
@@ -1384,6 +1523,38 @@ with tab_admin:
                         st.success(f"수동 등록 완료: {student['student_name']}")
                     except Exception as e:
                         st.error(f"수동 등록 실패: {e}")
+
+        st.markdown("##### 수동 출석 취소(삭제)")
+        cancel_cols = st.columns([4, 1])
+        with cancel_cols[0]:
+            cancel_student_label = st.selectbox(
+                "취소할 학생",
+                list(manual_student_options.keys()),
+                key="manual_cancel_student_pick",
+            )
+        with cancel_cols[1]:
+            cancel_manual = st.button(
+                "출석 취소",
+                use_container_width=True,
+                key="manual_cancel_submit",
+            )
+
+        if cancel_manual:
+            if day_code_from_date(manual_date) not in {"sat", "sun"}:
+                st.warning("수동 출석 취소는 토요일/일요일만 가능합니다.")
+            else:
+                student = manual_student_options[cancel_student_label]
+                try:
+                    delete_attendance(
+                        client=supabase,
+                        attendance_date=manual_date,
+                        student_id=student["student_id"],
+                    )
+                    st.success(f"수동 출석 취소 완료: {student['student_name']}")
+                    st.cache_data.clear()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"수동 출석 취소 실패: {e}")
 
     st.markdown("#### QR 출석 링크 생성")
     qr_cols = st.columns(3)
