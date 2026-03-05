@@ -621,6 +621,18 @@ def build_weekend_status_bar_chart(
     return fig
 
 
+def attendance_marker_colors(values: list[int], total_count: int, default_color: str) -> list[str]:
+    colors = []
+    for value in values:
+        if total_count > 0 and value == total_count:
+            colors.append("#0ea5e9")  # 모두 출석
+        elif value == 0:
+            colors.append("#ef4444")  # 모두 결석
+        else:
+            colors.append(default_color)
+    return colors
+
+
 def render_class_board(
     level_name: str,
     class_keys,
@@ -1450,6 +1462,8 @@ with tab_individual:
             week_labels = [week_label_from_sunday(date.fromisoformat(k)) for k in all_week_keys]
             sat_vals = [student_weekly_presence[k]["sat"] for k in all_week_keys]
             sun_vals = [student_weekly_presence[k]["sun"] for k in all_week_keys]
+            sat_marker_colors = attendance_marker_colors(sat_vals, 1, "#22c55e")
+            sun_marker_colors = attendance_marker_colors(sun_vals, 1, "#f97316")
 
             summary_cols = st.columns(2)
             summary_cols[0].metric("토요일 출석 횟수", sum(sat_vals))
@@ -1465,7 +1479,7 @@ with tab_individual:
                     text=sat_vals,
                     textposition="top center",
                     line=dict(color="#22c55e", width=3),
-                    marker=dict(size=8),
+                    marker=dict(size=8, color=sat_marker_colors),
                 )
             )
             fig.add_trace(
@@ -1477,7 +1491,7 @@ with tab_individual:
                     text=sun_vals,
                     textposition="top center",
                     line=dict(color="#f97316", width=3),
-                    marker=dict(size=8),
+                    marker=dict(size=8, color=sun_marker_colors),
                 )
             )
             fig.update_layout(
@@ -1562,6 +1576,8 @@ with tab_grade:
                 week_labels = [week_label_from_sunday(date.fromisoformat(k)) for k in all_week_keys]
                 sat_vals = [grade_weekly_presence[k]["sat"] for k in all_week_keys]
                 sun_vals = [grade_weekly_presence[k]["sun"] for k in all_week_keys]
+                sat_marker_colors = attendance_marker_colors(sat_vals, grade_size, "#22c55e")
+                sun_marker_colors = attendance_marker_colors(sun_vals, grade_size, "#f97316")
 
                 summary_cols = st.columns(3)
                 summary_cols[0].metric("학년 인원", grade_size)
@@ -1579,7 +1595,7 @@ with tab_grade:
                         text=sat_vals,
                         textposition="top center",
                         line=dict(color="#22c55e", width=3),
-                        marker=dict(size=8),
+                        marker=dict(size=8, color=sat_marker_colors),
                     )
                 )
                 fig.add_trace(
@@ -1591,7 +1607,7 @@ with tab_grade:
                         text=sun_vals,
                         textposition="top center",
                         line=dict(color="#f97316", width=3),
-                        marker=dict(size=8),
+                        marker=dict(size=8, color=sun_marker_colors),
                     )
                 )
                 fig.update_layout(
@@ -1663,6 +1679,8 @@ with tab_class:
             week_labels = [week_label_from_sunday(date.fromisoformat(k)) for k in all_week_keys]
             sat_vals = [class_weekly_presence[k]["sat"] for k in all_week_keys]
             sun_vals = [class_weekly_presence[k]["sun"] for k in all_week_keys]
+            sat_marker_colors = attendance_marker_colors(sat_vals, class_size, "#22c55e")
+            sun_marker_colors = attendance_marker_colors(sun_vals, class_size, "#f97316")
 
             summary_cols = st.columns(3)
             summary_cols[0].metric("반 인원", class_size)
@@ -1680,7 +1698,7 @@ with tab_class:
                     text=sat_vals,
                     textposition="top center",
                     line=dict(color="#22c55e", width=3),
-                    marker=dict(size=8),
+                    marker=dict(size=8, color=sat_marker_colors),
                 )
             )
             fig.add_trace(
@@ -1692,7 +1710,7 @@ with tab_class:
                     text=sun_vals,
                     textposition="top center",
                     line=dict(color="#f97316", width=3),
-                    marker=dict(size=8),
+                    marker=dict(size=8, color=sun_marker_colors),
                 )
             )
             fig.update_layout(
