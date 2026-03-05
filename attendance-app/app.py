@@ -375,12 +375,9 @@ def find_school_class_id(client: Client, level: str, grade: int, class_no: int) 
 def create_student_with_class(
     client: Client,
     student_name: str,
-    source_key: str | None,
     school_class_id: str,
 ) -> str:
     payload = {"name": student_name.strip()}
-    if source_key:
-        payload["source_key"] = source_key.strip()
 
     created = client.table("student").insert(payload).execute().data or []
     if not created or not created[0].get("id"):
@@ -1383,26 +1380,19 @@ with tab_dashboard:
 
 with tab_admin:
     st.markdown("#### 학생 추가")
-    add_student_cols = st.columns([2, 2, 3, 1])
+    add_student_cols = st.columns([3, 3, 1])
     with add_student_cols[0]:
         new_student_name = st.text_input("학생 이름", key="admin_new_student_name")
     with add_student_cols[1]:
-        new_student_source_key = st.text_input(
-            "학생 식별코드(선택)",
-            key="admin_new_student_source_key",
-            placeholder="모르면 비워두세요",
-        )
-    with add_student_cols[2]:
         new_student_class = st.selectbox(
             "배정 반",
             class_options,
             format_func=lambda c: f"{c[0]} {c[1]}학년 {c[2]}반",
             key="admin_new_student_class",
         )
-    with add_student_cols[3]:
+    with add_student_cols[2]:
         st.markdown("<div style='height: 1.8rem'></div>", unsafe_allow_html=True)
         submit_new_student = st.button("학생 추가", use_container_width=True, key="admin_new_student_submit")
-    st.caption("학생 식별코드는 동명이인 구분이 필요할 때만 입력하면 됩니다.")
 
     if submit_new_student:
         if not new_student_name.strip():
@@ -1417,7 +1407,6 @@ with tab_admin:
                     create_student_with_class(
                         client=supabase,
                         student_name=new_student_name,
-                        source_key=new_student_source_key.strip() or None,
                         school_class_id=school_class_id,
                     )
                     st.success(f"학생 추가 완료: {new_student_name} ({level} {grade}학년 {class_no}반)")
@@ -1525,6 +1514,12 @@ with tab_admin:
                         st.error(f"수동 등록 실패: {e}")
 
         st.markdown("##### 수동 출석 취소(삭제)")
+        cancel_date = st.date_input(
+            "취소할 날짜",
+            value=manual_date,
+            key="manual_cancel_date_input",
+        )
+        st.caption(f"취소 날짜 요일: {day_label_from_date(cancel_date)}")
         cancel_class = st.selectbox(
             "취소할 반",
             class_options,
@@ -1556,14 +1551,14 @@ with tab_admin:
             )
 
         if cancel_manual:
-            if day_code_from_date(manual_date) not in {"sat", "sun"}:
+            if day_code_from_date(cancel_date) not in {"sat", "sun"}:
                 st.warning("수동 출석 취소는 토요일/일요일만 가능합니다.")
             else:
                 student = cancel_student_options[cancel_student_label]
                 try:
                     delete_attendance(
                         client=supabase,
-                        attendance_date=manual_date,
+                        attendance_date=cancel_date,
                         student_id=student["student_id"],
                     )
                     st.success(f"수동 출석 취소 완료: {student['student_name']}")
