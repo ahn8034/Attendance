@@ -1388,9 +1388,9 @@ with tab_admin:
         new_student_name = st.text_input("학생 이름", key="admin_new_student_name")
     with add_student_cols[1]:
         new_student_source_key = st.text_input(
-            "source_key(선택)",
+            "학생 식별코드(선택)",
             key="admin_new_student_source_key",
-            placeholder="예: 1234567890",
+            placeholder="모르면 비워두세요",
         )
     with add_student_cols[2]:
         new_student_class = st.selectbox(
@@ -1402,6 +1402,7 @@ with tab_admin:
     with add_student_cols[3]:
         st.markdown("<div style='height: 1.8rem'></div>", unsafe_allow_html=True)
         submit_new_student = st.button("학생 추가", use_container_width=True, key="admin_new_student_submit")
+    st.caption("학생 식별코드는 동명이인 구분이 필요할 때만 입력하면 됩니다.")
 
     if submit_new_student:
         if not new_student_name.strip():
@@ -1524,24 +1525,41 @@ with tab_admin:
                         st.error(f"수동 등록 실패: {e}")
 
         st.markdown("##### 수동 출석 취소(삭제)")
-        cancel_student_label = st.selectbox(
-            "취소할 학생",
-            list(manual_student_options.keys()),
-            key="manual_cancel_student_pick",
+        cancel_class = st.selectbox(
+            "취소할 반",
+            class_options,
+            format_func=lambda c: f"{c[0]} {c[1]}학년 {c[2]}반",
+            key="manual_cancel_class_select",
         )
+        cancel_students = [
+            r for r in class_rows if (r["level"], r["grade"], r["class_no"]) == cancel_class
+        ]
+        cancel_student_options = {
+            f"{r['student_name']} ({r['student_id'][:8]})": r for r in cancel_students
+        }
+        if cancel_student_options:
+            cancel_student_label = st.selectbox(
+                "취소할 학생",
+                list(cancel_student_options.keys()),
+                key="manual_cancel_student_pick",
+            )
+        else:
+            cancel_student_label = ""
+            st.info("선택한 취소 반에 학생 정보가 없습니다.")
         cancel_action_cols = st.columns([1, 3])
         with cancel_action_cols[0]:
             cancel_manual = st.button(
                 "출석 취소",
                 use_container_width=True,
                 key="manual_cancel_submit",
+                disabled=not bool(cancel_student_options),
             )
 
         if cancel_manual:
             if day_code_from_date(manual_date) not in {"sat", "sun"}:
                 st.warning("수동 출석 취소는 토요일/일요일만 가능합니다.")
             else:
-                student = manual_student_options[cancel_student_label]
+                student = cancel_student_options[cancel_student_label]
                 try:
                     delete_attendance(
                         client=supabase,
