@@ -633,6 +633,10 @@ def attendance_marker_colors(values: list[int], total_count: int, default_color:
     return colors
 
 
+def render_attendance_color_guide():
+    st.caption("색상 안내: 파란색 점=모두 출석, 빨간색 점=모두 결석, 그 외 점=요일 기본색")
+
+
 def render_class_board(
     level_name: str,
     class_keys,
@@ -1468,6 +1472,7 @@ with tab_individual:
             summary_cols = st.columns(2)
             summary_cols[0].metric("토요일 출석 횟수", sum(sat_vals))
             summary_cols[1].metric("일요일 출석 횟수", sum(sun_vals))
+            render_attendance_color_guide()
 
             fig = go.Figure()
             fig.add_trace(
@@ -1583,6 +1588,7 @@ with tab_grade:
                 summary_cols[0].metric("학년 인원", grade_size)
                 summary_cols[1].metric("토요일 총 출석", sum(sat_vals))
                 summary_cols[2].metric("일요일 총 출석", sum(sun_vals))
+                render_attendance_color_guide()
 
                 y_max = max(sat_vals + sun_vals + [grade_size, 1]) * 1.15
                 fig = go.Figure()
@@ -1686,6 +1692,7 @@ with tab_class:
             summary_cols[0].metric("반 인원", class_size)
             summary_cols[1].metric("토요일 총 출석", sum(sat_vals))
             summary_cols[2].metric("일요일 총 출석", sum(sun_vals))
+            render_attendance_color_guide()
 
             y_max = max(sat_vals + sun_vals + [class_size, 1]) * 1.15
             fig = go.Figure()
