@@ -1029,8 +1029,8 @@ if not class_options:
 if handle_qr_checkin(supabase):
     st.stop()
 
-tab_dashboard, tab_grade, tab_class, tab_individual, tab_admin = st.tabs(
-    ["전체출석", "학년별출석", "반별출석", "개별출석", "관리자"]
+tab_dashboard, tab_grade, tab_class, tab_individual, tab_registration, tab_attendance = st.tabs(
+    ["전체출석", "학년별출석", "반별출석", "개별출석", "신규등록", "출석인증"]
 )
 
 with tab_dashboard:
@@ -1744,7 +1744,7 @@ with tab_class:
             )
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
-with tab_admin:
+with tab_registration:
     st.markdown("#### 학생 추가")
     add_student_cols = st.columns([3, 3, 1])
     with add_student_cols[0]:
@@ -1825,7 +1825,7 @@ with tab_admin:
         except Exception as e:
             st.error(f"학생 삭제 실패: {e}")
 
-    st.divider()
+with tab_attendance:
     st.markdown("#### 수동 출석 입력")
     manual_date = st.date_input("수동 출석 날짜", value=date.today(), key="manual_date_input")
     manual_day_label = day_label_from_date(manual_date)
