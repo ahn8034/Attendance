@@ -1500,6 +1500,7 @@ with tab_admin:
                 key="manual_student_pick",
             )
         with manual_cols[1]:
+            st.markdown("<div style='height: 1.8rem'></div>", unsafe_allow_html=True)
             submit_manual = st.button("수동 출석 등록", use_container_width=True, key="manual_submit")
 
         if submit_manual:
@@ -1533,6 +1534,7 @@ with tab_admin:
                 key="manual_cancel_student_pick",
             )
         with cancel_cols[1]:
+            st.markdown("<div style='height: 1.8rem'></div>", unsafe_allow_html=True)
             cancel_manual = st.button(
                 "출석 취소",
                 use_container_width=True,
