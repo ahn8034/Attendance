@@ -1003,8 +1003,8 @@ if not class_options:
 if handle_qr_checkin(supabase):
     st.stop()
 
-tab_dashboard, tab_individual, tab_class, tab_admin = st.tabs(
-    ["전체출석", "개별출석", "반별출석", "관리자"]
+tab_dashboard, tab_class, tab_individual, tab_admin = st.tabs(
+    ["전체출석", "반별출석", "개별출석", "관리자"]
 )
 
 with tab_dashboard:
