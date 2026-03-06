@@ -802,7 +802,7 @@ def render_weekly_section(
 
     if selected_week_no > len(sundays):
         st.warning(f"{selected_year}년 {selected_month}월은 {len(sundays)}주차까지만 있습니다.")
-        return
+        return None
 
     sunday_date = sundays[selected_week_no - 1]
     saturday_date = sunday_date - timedelta(days=1)
@@ -825,7 +825,7 @@ def render_weekly_section(
         weekly_rows = fetch_roster_by_range(supabase, saturday_date, sunday_date)
     except Exception as e:
         st.error(f"주간 조회 실패: {e}")
-        return
+        return None
 
     weekly_filtered = [
         r
@@ -889,7 +889,7 @@ def render_weekly_section(
 
     if not weekly_display:
         st.info("해당 반의 학생 데이터가 없습니다.")
-        return
+        return None
 
     homeroom_map = {
         (r["level"], r["grade"], r["class_no"]): r.get("homeroom_teacher")
@@ -992,6 +992,7 @@ def render_weekly_section(
 
     with st.expander("주간 원본(검증용)"):
         st.dataframe(weekly_display, use_container_width=True)
+    return saturday_date, sunday_date
 
 
 st.title("수원교회 중고등부 출석현황")
@@ -1034,7 +1035,7 @@ tab_dashboard, tab_grade, tab_class, tab_individual, tab_registration, tab_atten
 )
 
 with tab_dashboard:
-    render_weekly_section(
+    selected_weekend = render_weekly_section(
         supabase=supabase,
         class_options=class_options,
         class_rows=class_rows,
@@ -1065,10 +1066,14 @@ with tab_dashboard:
                 continue
             date_student_status[adate][sid] = normalize_status(row.get("status"))
 
+        selected_weekend_dates = []
+        if selected_weekend:
+            selected_weekend_dates = [selected_weekend[0], selected_weekend[1]]
+
         weekend_counts = Counter()
-        for adate, student_map in date_student_status.items():
-            day = date.fromisoformat(adate)
-            day_code = day_code_from_date(day)
+        for target_day in selected_weekend_dates:
+            student_map = date_student_status.get(target_day.isoformat(), {})
+            day_code = day_code_from_date(target_day)
             present_cnt = sum(1 for s in student_map.values() if s == "present")
             absent_cnt = max(unique_students - present_cnt, 0)
             if day_code == "sat":
@@ -1080,17 +1085,16 @@ with tab_dashboard:
 
         teacher_total = 0
         teacher_weekend_counts = Counter()
-        if date_student_status:
+        if selected_weekend_dates:
             try:
                 teacher_ids = fetch_class_teacher_ids(supabase)
                 teacher_total = len(teacher_ids)
                 if teacher_total > 0:
                     teacher_id_set = set(teacher_ids)
-                    all_dates = sorted(date_student_status.keys())
                     teacher_rows = fetch_teacher_attendance_by_range(
                         supabase,
-                        date.fromisoformat(all_dates[0]),
-                        date.fromisoformat(all_dates[-1]),
+                        selected_weekend_dates[0],
+                        selected_weekend_dates[-1],
                     )
                     teacher_present_by_date = defaultdict(set)
                     for row in teacher_rows:
@@ -1099,8 +1103,9 @@ with tab_dashboard:
                         if tid in teacher_id_set and adate:
                             teacher_present_by_date[adate].add(tid)
 
-                    for adate in all_dates:
-                        day_code = day_code_from_date(date.fromisoformat(adate))
+                    for target_day in selected_weekend_dates:
+                        adate = target_day.isoformat()
+                        day_code = day_code_from_date(target_day)
                         if day_code not in {"sat", "sun"}:
                             continue
                         present_cnt = len(teacher_present_by_date.get(adate, set()))
@@ -1195,87 +1200,62 @@ with tab_dashboard:
             )
             st.plotly_chart(trend_fig, use_container_width=True, config={"displayModeBar": False})
 
-        st.subheader("중등부 / 고등부 출석 인원 트렌드 (토/일)")
+        st.subheader("중등부 / 고등부 출석 인원 트렌드 (주차별)")
+        week_keys = [k for k, _ in week_rows]
+        week_labels = [week_label_from_sunday(date.fromisoformat(k)) for k in week_keys]
         level_student_ids = {
             "중등부": {r["student_id"] for r in class_rows if r.get("level") == "middle"},
             "고등부": {r["student_id"] for r in class_rows if r.get("level") == "high"},
         }
-        level_totals = {
-            "중등부": len(level_student_ids["중등부"]),
-            "고등부": len(level_student_ids["고등부"]),
-        }
-        all_dates = sorted(date_student_status.keys())
-        sat_dates = [d for d in all_dates if day_code_from_date(date.fromisoformat(d)) == "sat"]
-        sun_dates = [d for d in all_dates if day_code_from_date(date.fromisoformat(d)) == "sun"]
-        latest_sat = sat_dates[-1] if sat_dates else None
-        latest_sun = sun_dates[-1] if sun_dates else None
-
-        def level_present_for(adate: str | None, level_name: str) -> int:
-            if not adate:
-                return 0
-            student_map = date_student_status.get(adate, {})
-            return sum(
-                1
-                for sid, stt in student_map.items()
-                if sid in level_student_ids[level_name] and stt == "present"
-            )
-
-        sat_middle_present = level_present_for(latest_sat, "중등부")
-        sat_high_present = level_present_for(latest_sat, "고등부")
-        sun_middle_present = level_present_for(latest_sun, "중등부")
-        sun_high_present = level_present_for(latest_sun, "고등부")
-
-        level_weekend_present = {
-            "중등부": {"sat": 0, "sun": 0},
-            "고등부": {"sat": 0, "sun": 0},
-        }
+        level_weekly_present = defaultdict(lambda: {"중등부": {"sat": 0, "sun": 0}, "고등부": {"sat": 0, "sun": 0}})
         for adate, student_map in date_student_status.items():
-            day_code = day_code_from_date(date.fromisoformat(adate))
+            day = date.fromisoformat(adate)
+            day_code = day_code_from_date(day)
             if day_code not in {"sat", "sun"}:
                 continue
+            week_key = (day + timedelta(days=1)).isoformat() if day_code == "sat" else day.isoformat()
             for level_name, sids in level_student_ids.items():
-                present_cnt = sum(
+                level_weekly_present[week_key][level_name][day_code] = sum(
                     1 for sid, stt in student_map.items() if sid in sids and stt == "present"
                 )
-                level_weekend_present[level_name][day_code] += present_cnt
 
-        max_level_val = max(
-            level_weekend_present["중등부"]["sat"],
-            level_weekend_present["중등부"]["sun"],
-            level_weekend_present["고등부"]["sat"],
-            level_weekend_present["고등부"]["sun"],
-            1,
-        )
+        middle_sat_vals = [level_weekly_present[k]["중등부"]["sat"] for k in week_keys]
+        middle_sun_vals = [level_weekly_present[k]["중등부"]["sun"] for k in week_keys]
+        high_sat_vals = [level_weekly_present[k]["고등부"]["sat"] for k in week_keys]
+        high_sun_vals = [level_weekly_present[k]["고등부"]["sun"] for k in week_keys]
+        max_level_val = max(middle_sat_vals + middle_sun_vals + high_sat_vals + high_sun_vals + [1]) * 1.35
+
         level_chart_cols = st.columns(2)
         with level_chart_cols[0]:
             middle_fig = go.Figure()
             middle_fig.add_trace(
                 go.Scatter(
                     name="토요일",
-                    x=["중등부"],
-                    y=[level_weekend_present["중등부"]["sat"]],
+                    x=week_labels,
+                    y=middle_sat_vals,
                     mode="lines+markers+text",
-                    text=[level_weekend_present["중등부"]["sat"]],
+                    text=middle_sat_vals,
                     textposition="top center",
                     line=dict(color="#22c55e", width=3),
-                    marker=dict(size=9),
+                    marker=dict(size=8),
                 )
             )
             middle_fig.add_trace(
                 go.Scatter(
                     name="일요일",
-                    x=["중등부"],
-                    y=[level_weekend_present["중등부"]["sun"]],
+                    x=week_labels,
+                    y=middle_sun_vals,
                     mode="lines+markers+text",
-                    text=[level_weekend_present["중등부"]["sun"]],
+                    text=middle_sun_vals,
                     textposition="top center",
                     line=dict(color="#f97316", width=3),
-                    marker=dict(size=9),
+                    marker=dict(size=8),
                 )
             )
             middle_fig.update_layout(
-                yaxis=dict(title="출석 인원(명)", range=[0, max_level_val * 1.35]),
-                xaxis=dict(title=""),
+                title="중등부 출석 트렌드",
+                yaxis=dict(title="출석 인원(명)", range=[0, max_level_val]),
+                xaxis=dict(title="주차"),
                 margin=dict(l=20, r=20, t=40, b=20),
                 legend=dict(title="요일"),
                 template="plotly_dark",
@@ -1288,30 +1268,31 @@ with tab_dashboard:
             high_fig.add_trace(
                 go.Scatter(
                     name="토요일",
-                    x=["고등부"],
-                    y=[level_weekend_present["고등부"]["sat"]],
+                    x=week_labels,
+                    y=high_sat_vals,
                     mode="lines+markers+text",
-                    text=[level_weekend_present["고등부"]["sat"]],
+                    text=high_sat_vals,
                     textposition="top center",
                     line=dict(color="#22c55e", width=3),
-                    marker=dict(size=9),
+                    marker=dict(size=8),
                 )
             )
             high_fig.add_trace(
                 go.Scatter(
                     name="일요일",
-                    x=["고등부"],
-                    y=[level_weekend_present["고등부"]["sun"]],
+                    x=week_labels,
+                    y=high_sun_vals,
                     mode="lines+markers+text",
-                    text=[level_weekend_present["고등부"]["sun"]],
+                    text=high_sun_vals,
                     textposition="top center",
                     line=dict(color="#f97316", width=3),
-                    marker=dict(size=9),
+                    marker=dict(size=8),
                 )
             )
             high_fig.update_layout(
-                yaxis=dict(title="출석 인원(명)", range=[0, max_level_val * 1.35]),
-                xaxis=dict(title=""),
+                title="고등부 출석 트렌드",
+                yaxis=dict(title="출석 인원(명)", range=[0, max_level_val]),
+                xaxis=dict(title="주차"),
                 margin=dict(l=20, r=20, t=40, b=20),
                 legend=dict(title="요일"),
                 template="plotly_dark",
@@ -1319,98 +1300,85 @@ with tab_dashboard:
             )
             st.plotly_chart(high_fig, use_container_width=True, config={"displayModeBar": False})
 
-        sibling_by_level_day = {
-            "중등부": {"sat": Counter(), "sun": Counter()},
-            "고등부": {"sat": Counter(), "sun": Counter()},
-        }
+        sibling_weekly = defaultdict(
+            lambda: {
+                "중등부": {"형제": {"sat": 0, "sun": 0}, "자매": {"sat": 0, "sun": 0}},
+                "고등부": {"형제": {"sat": 0, "sun": 0}, "자매": {"sat": 0, "sun": 0}},
+            }
+        )
         for adate, student_map in date_student_status.items():
-            day_code = day_code_from_date(date.fromisoformat(adate))
+            day = date.fromisoformat(adate)
+            day_code = day_code_from_date(day)
+            if day_code not in {"sat", "sun"}:
+                continue
+            week_key = (day + timedelta(days=1)).isoformat() if day_code == "sat" else day.isoformat()
             for sid, stt in student_map.items():
                 if stt != "present":
                     continue
                 meta = student_group_map.get(sid, {})
-                sibling = meta.get("sibling", "")
                 level_name = meta.get("level", "")
-                if sibling in {"형제", "자매"}:
-                    if day_code in {"sat", "sun"}:
-                        if level_name in sibling_by_level_day:
-                            sibling_by_level_day[level_name][day_code][sibling] += 1
+                sibling = meta.get("sibling", "")
+                if level_name in {"중등부", "고등부"} and sibling in {"형제", "자매"}:
+                    sibling_weekly[week_key][level_name][sibling][day_code] += 1
 
         trend_chart_rows = [st.columns(2), st.columns(2)]
-        sibling_max = max(
-            sibling_by_level_day["중등부"]["sat"].get("형제", 0),
-            sibling_by_level_day["중등부"]["sun"].get("형제", 0),
-            sibling_by_level_day["중등부"]["sat"].get("자매", 0),
-            sibling_by_level_day["중등부"]["sun"].get("자매", 0),
-            sibling_by_level_day["고등부"]["sat"].get("형제", 0),
-            sibling_by_level_day["고등부"]["sun"].get("형제", 0),
-            sibling_by_level_day["고등부"]["sat"].get("자매", 0),
-            sibling_by_level_day["고등부"]["sun"].get("자매", 0),
-            1,
-        )
+        sibling_max = 1
+        for wk in week_keys:
+            for lv in ["중등부", "고등부"]:
+                for sg in ["형제", "자매"]:
+                    sibling_max = max(
+                        sibling_max,
+                        sibling_weekly[wk][lv][sg]["sat"],
+                        sibling_weekly[wk][lv][sg]["sun"],
+                    )
 
-        def render_single_sibling_trend(x_label: str, sat_val: int, sun_val: int):
+        def render_single_sibling_trend(title: str, level_name: str, sibling_name: str):
+            sat_vals = [sibling_weekly[k][level_name][sibling_name]["sat"] for k in week_keys]
+            sun_vals = [sibling_weekly[k][level_name][sibling_name]["sun"] for k in week_keys]
             fig = go.Figure()
             fig.add_trace(
                 go.Scatter(
                     name="토요일",
-                    x=[x_label],
-                    y=[sat_val],
-                    mode="markers+text",
-                    text=[sat_val],
+                    x=week_labels,
+                    y=sat_vals,
+                    mode="lines+markers+text",
+                    text=sat_vals,
                     textposition="top center",
-                    marker=dict(color="#22c55e", size=11),
+                    line=dict(color="#22c55e", width=3),
+                    marker=dict(size=8),
                 )
             )
             fig.add_trace(
                 go.Scatter(
                     name="일요일",
-                    x=[x_label],
-                    y=[sun_val],
-                    mode="markers+text",
-                    text=[sun_val],
+                    x=week_labels,
+                    y=sun_vals,
+                    mode="lines+markers+text",
+                    text=sun_vals,
                     textposition="top center",
-                    marker=dict(color="#f97316", size=11),
+                    line=dict(color="#f97316", width=3),
+                    marker=dict(size=8),
                 )
             )
             fig.update_layout(
+                title=title,
                 yaxis=dict(title="출석 인원(명)", range=[0, sibling_max * 1.35]),
-                xaxis=dict(title=""),
+                xaxis=dict(title="주차"),
                 margin=dict(l=20, r=20, t=40, b=20),
                 legend=dict(title="요일"),
                 template="plotly_dark",
-                height=280,
+                height=300,
             )
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
         with trend_chart_rows[0][0]:
-            st.subheader("중등부 형제 트렌드")
-            render_single_sibling_trend(
-                "중등부 형제",
-                sibling_by_level_day["중등부"]["sat"].get("형제", 0),
-                sibling_by_level_day["중등부"]["sun"].get("형제", 0),
-            )
+            render_single_sibling_trend("중등부 형제 트렌드", "중등부", "형제")
         with trend_chart_rows[0][1]:
-            st.subheader("중등부 자매 트렌드")
-            render_single_sibling_trend(
-                "중등부 자매",
-                sibling_by_level_day["중등부"]["sat"].get("자매", 0),
-                sibling_by_level_day["중등부"]["sun"].get("자매", 0),
-            )
+            render_single_sibling_trend("중등부 자매 트렌드", "중등부", "자매")
         with trend_chart_rows[1][0]:
-            st.subheader("고등부 형제 트렌드")
-            render_single_sibling_trend(
-                "고등부 형제",
-                sibling_by_level_day["고등부"]["sat"].get("형제", 0),
-                sibling_by_level_day["고등부"]["sun"].get("형제", 0),
-            )
+            render_single_sibling_trend("고등부 형제 트렌드", "고등부", "형제")
         with trend_chart_rows[1][1]:
-            st.subheader("고등부 자매 트렌드")
-            render_single_sibling_trend(
-                "고등부 자매",
-                sibling_by_level_day["고등부"]["sat"].get("자매", 0),
-                sibling_by_level_day["고등부"]["sun"].get("자매", 0),
-            )
+            render_single_sibling_trend("고등부 자매 트렌드", "고등부", "자매")
 
 with tab_individual:
     st.subheader("개별출석")
@@ -1848,10 +1816,10 @@ with tab_attendance:
     if not manual_student_options:
         st.info("선택한 반에 학생 정보가 없습니다.")
     else:
-        selected_manual_student = st.selectbox(
-            "학생",
+        selected_manual_students = st.multiselect(
+            "학생(복수 선택 가능)",
             list(manual_student_options.keys()),
-            key="manual_student_pick",
+            key="manual_student_multi_pick",
         )
         manual_action_cols = st.columns([1, 3])
         with manual_action_cols[0]:
@@ -1860,12 +1828,17 @@ with tab_attendance:
         if submit_manual:
             if day_code_from_date(manual_date) not in {"sat", "sun"}:
                 st.warning("수동 출석 등록은 토요일/일요일만 가능합니다.")
+            elif not selected_manual_students:
+                st.warning("출석 등록할 학생을 1명 이상 선택하세요.")
             else:
-                student = manual_student_options[selected_manual_student]
-                school_class_id = find_school_class_id_by_student_id(supabase, student["student_id"])
-                if not school_class_id:
-                    st.error("student_class에서 반 정보를 찾지 못했습니다.")
-                else:
+                success_names = []
+                failed_names = []
+                for selected_label in selected_manual_students:
+                    student = manual_student_options[selected_label]
+                    school_class_id = find_school_class_id_by_student_id(supabase, student["student_id"])
+                    if not school_class_id:
+                        failed_names.append(student["student_name"])
+                        continue
                     try:
                         save_attendance(
                             client=supabase,
@@ -1875,9 +1848,17 @@ with tab_attendance:
                             status="present",
                             note="manual check-in",
                         )
-                        st.success(f"수동 등록 완료: {student['student_name']}")
-                    except Exception as e:
-                        st.error(f"수동 등록 실패: {e}")
+                        success_names.append(student["student_name"])
+                    except Exception:
+                        failed_names.append(student["student_name"])
+
+                if success_names:
+                    st.success(f"수동 등록 완료: {len(success_names)}명")
+                if failed_names:
+                    st.error(f"수동 등록 실패: {', '.join(failed_names)}")
+                if success_names:
+                    st.cache_data.clear()
+                    st.rerun()
 
         st.markdown("##### 수동 출석 취소(삭제)")
         cancel_date = st.date_input(
