@@ -1794,6 +1794,13 @@ with tab_registration:
             st.error(f"학생 삭제 실패: {e}")
 
 with tab_attendance:
+    manual_flash_success = st.session_state.pop("manual_flash_success", "")
+    if manual_flash_success:
+        st.success(manual_flash_success)
+    manual_flash_error = st.session_state.pop("manual_flash_error", "")
+    if manual_flash_error:
+        st.error(manual_flash_error)
+
     st.markdown("#### 수동 출석 입력")
     manual_date = st.date_input("수동 출석 날짜", value=date.today(), key="manual_date_input")
     manual_day_label = day_label_from_date(manual_date)
@@ -1853,12 +1860,15 @@ with tab_attendance:
                         failed_names.append(student["student_name"])
 
                 if success_names:
-                    st.success(f"수동 등록 완료({len(success_names)}명): {', '.join(success_names)}")
-                if failed_names:
-                    st.error(f"수동 등록 실패: {', '.join(failed_names)}")
-                if success_names:
+                    st.session_state["manual_flash_success"] = (
+                        f"수동 등록 완료({len(success_names)}명): {', '.join(success_names)}"
+                    )
+                    if failed_names:
+                        st.session_state["manual_flash_error"] = f"수동 등록 실패: {', '.join(failed_names)}"
                     st.cache_data.clear()
                     st.rerun()
+                elif failed_names:
+                    st.error(f"수동 등록 실패: {', '.join(failed_names)}")
 
         st.markdown("##### 수동 출석 취소(삭제)")
         cancel_date = st.date_input(
