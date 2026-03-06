@@ -1853,7 +1853,7 @@ with tab_attendance:
                         failed_names.append(student["student_name"])
 
                 if success_names:
-                    st.success(f"수동 등록 완료: {len(success_names)}명")
+                    st.success(f"수동 등록 완료({len(success_names)}명): {', '.join(success_names)}")
                 if failed_names:
                     st.error(f"수동 등록 실패: {', '.join(failed_names)}")
                 if success_names:
